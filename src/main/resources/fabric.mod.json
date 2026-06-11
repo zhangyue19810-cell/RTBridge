@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "rtbridge",
+  "version": "${version}",
+  "name": "RTBridge",
+  "description": "Vulkan Ray Tracing bridge for Minecraft — event-driven Scene Database, async BVH, same-frame composite, Valkyrien Skies compatible.",
+  "authors": ["RTBridge Contributors"],
+  "license": "LGPL-3.0",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.rtbridge.RTBridgeMod"]
+  },
+  "mixins": ["rtbridge.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "~1.20.1",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "valkyrienskies": "*",
+    "sodium": "*",
+    "iris": "*"
+  }
+}
