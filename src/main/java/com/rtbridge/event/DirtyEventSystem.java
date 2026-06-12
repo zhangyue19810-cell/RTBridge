@@ -1,9 +1,6 @@
 package com.rtbridge.event;
 
 import com.rtbridge.RTBridgeMod;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +47,7 @@ public class DirtyEventSystem {
      * Wire up all the Fabric API callbacks that translate MC world events into
      * DirtyEvent objects.  Called once at mod init.
      */
-    public void registerFabricHooks() {
+    public void registerNeoForgeHooks() {
         registerChunkHooks();
         registerBlockHooks();
         // Entity hooks are registered via mixin — see MixinWorldRenderer
@@ -61,17 +58,8 @@ public class DirtyEventSystem {
     // ── Chunk ─────────────────────────────────────────────────────────────────
 
     private void registerChunkHooks() {
-        ClientChunkEvents.CHUNK_LOAD.register((world, chunk) ->
-            post(DirtyEvent.of(DirtyEventType.CHUNK_LOAD)
-                .chunk(chunk.getPos())
-                .build())
-        );
-
-        ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) ->
-            post(DirtyEvent.of(DirtyEventType.CHUNK_UNLOAD)
-                .chunk(chunk.getPos())
-                .build())
-        );
+        // TODO: NeoForge ChunkEvent.Load  -> post CHUNK_LOAD
+        // TODO: NeoForge ChunkEvent.Unload -> post CHUNK_UNLOAD
     }
 
     // ── Blocks ────────────────────────────────────────────────────────────────
