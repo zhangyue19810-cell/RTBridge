@@ -28,6 +28,7 @@ public class RTBridgeMod {
     private static TripleBuffer     tripleBuffer;
     private static RTRenderer       rtRenderer;
     private static CompositePass    compositePass;
+    private static SableCompat       sableCompat;
 
     public RTBridgeMod(IEventBus modBus) {
         modBus.addListener(this::clientSetup);
@@ -49,6 +50,13 @@ public class RTBridgeMod {
 
         // Render hooks
         NeoForge.EVENT_BUS.addListener(this::onRenderLevelStage);
+
+        // Sable sub-level compat
+        if (SableCompat.isLoaded()) {
+            sableCompat = new SableCompat(dirtyEventSystem,
+                rtRenderer.isAvailable() ? rtRenderer.getTLASManager() : null);
+            sableCompat.register();
+        }
 
         LOGGER.info("[RTBridge] Ready. RT={}", rtRenderer.isAvailable() ? "Vulkan" : "disabled");
     }

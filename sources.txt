@@ -5,6 +5,7 @@ src/main/java/com/rtbridge/bvh/TLASManager.java
 src/main/java/com/rtbridge/compat/IrisCompat.java
 src/main/java/com/rtbridge/compat/SodiumCompat.java
 src/main/java/com/rtbridge/compat/ValkyrienSkiesCompat.java
+src/main/java/com/rtbridge/compat/SableCompat.java
 src/main/java/com/rtbridge/event/DirtyEvent.java
 src/main/java/com/rtbridge/event/DirtyEventListener.java
 src/main/java/com/rtbridge/event/DirtyEventSystem.java

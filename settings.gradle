@@ -1,6 +1,7 @@
 pluginManagement {
     repositories {
         maven { url = 'https://maven.neoforged.net/releases' }
+        maven { name = 'RyanHCode Maven'; url = 'https://maven.ryanhcode.dev/releases' }
         maven { url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
         gradlePluginPortal()
     }

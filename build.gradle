@@ -13,4 +13,9 @@ java {
 
 dependencies {
     implementation "net.neoforged:neoforge:${project.neo_version}"
+
+    // Sable Companion — lightweight, JiJ into our mod
+    jarJar(api("dev.ryanhcode.sable-companion:sable-companion-common-${project.minecraft_version}:[${project.sable_companion_version},)")) {
+        version { prefer project.sable_companion_version }
+    }
 }

@@ -284,6 +284,7 @@ public class RTRenderer {
     public int getGIBuffer()         { return gIBufferId; }
 
     public TLASInstanceBuffer getTLASBuffer()   { return tlasBuffer; }
+    public com.rtbridge.bvh.TLASManager getTLASManager() { return tlasManager; }
     public AsyncBLASBuilder   getBLASBuilder()  { return blasBuilder; }
 
     public void shutdown() {
