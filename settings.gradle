@@ -1,9 +1,35 @@
 pluginManagement {
     repositories {
-        maven { url = 'https://maven.neoforged.net/releases' }
-        maven { name = 'RyanHCode Maven'; url = 'https://maven.ryanhcode.dev/releases' }
-        maven { url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
+        // 主仓库
+        maven {
+            name = 'NeoForged'
+            url  = 'https://maven.neoforged.net/releases'
+        }
+        // 备用镜像（阿里云代理 central）
+        maven {
+            name = 'AliYun'
+            url  = 'https://maven.aliyun.com/repository/public'
+        }
         gradlePluginPortal()
     }
 }
+
+dependencyResolutionManagement {
+    repositories {
+        maven {
+            name = 'NeoForged'
+            url  = 'https://maven.neoforged.net/releases'
+        }
+        maven {
+            name = 'RyanHCode'
+            url  = 'https://maven.ryanhcode.dev/releases'
+        }
+        maven {
+            name = 'AliYun'
+            url  = 'https://maven.aliyun.com/repository/public'
+        }
+        mavenCentral()
+    }
+}
+
 rootProject.name = 'RTBridge'

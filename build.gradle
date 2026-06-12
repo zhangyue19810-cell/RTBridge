@@ -1,21 +1,39 @@
 plugins {
-    id 'net.neoforged.gradle.userdev' version '7.0.157'
+    id 'net.neoforged.gradle.userdev' version '7.0.144'
 }
 
-version = project.mod_version
-group   = project.maven_group
+version  = project.mod_version
+group    = project.maven_group
 base { archivesName = project.archives_base_name }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+minecraft {
+    accessTransformers { file('src/main/resources/META-INF/accesstransformer.cfg') }
+}
+
+runs {
+    configureEach {
+        systemProperty 'forge.logging.markers', 'REGISTRIES'
+        systemProperty 'forge.logging.console.level', 'debug'
+    }
+    client {
+        client()
+    }
 }
 
 dependencies {
     implementation "net.neoforged:neoforge:${project.neo_version}"
 
-    // Sable Companion — lightweight, JiJ into our mod
+    // Sable Companion
     jarJar(api("dev.ryanhcode.sable-companion:sable-companion-common-${project.minecraft_version}:[${project.sable_companion_version},)")) {
         version { prefer project.sable_companion_version }
     }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
