@@ -28,3 +28,5 @@ src/main/java/com/rtbridge/RTBridgeMod.java
 src/main/java/com/rtbridge/vulkan/VulkanContext.java
 src/main/java/com/rtbridge/vulkan/VulkanBuffer.java
 src/main/java/com/rtbridge/vulkan/BLASEntry.java
+src/main/java/com/rtbridge/vulkan/RTPipeline.java
+src/main/java/com/rtbridge/vulkan/ShaderBindingTable.java

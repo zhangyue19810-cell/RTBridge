@@ -210,8 +210,41 @@ public class RTRenderer {
      *
      * Output: shadowBufferId (R8 or R16F texture)
      */
+    // Shadow pipeline (lazy init)
+    private com.rtbridge.vulkan.RTPipeline      shadowPipeline;
+    private com.rtbridge.vulkan.ShaderBindingTable shadowSBT;
+    private boolean shadowPipelineReady = false;
+
     private void dispatchShadowPass(SceneDatabase scene, long frameIdx) {
-        // TODO: bind TLAS descriptor, dispatch shadow RT pipeline
+        if (vulkanCtx == null) return;
+
+        // Lazy init on first frame
+        if (!shadowPipelineReady) {
+            shadowPipeline = new com.rtbridge.vulkan.RTPipeline(vulkanCtx);
+            if (shadowPipeline.build("shadow")) {
+                shadowSBT = new com.rtbridge.vulkan.ShaderBindingTable(vulkanCtx);
+                shadowSBT.build(shadowPipeline);
+                shadowPipelineReady = true;
+                RTBridgeMod.LOGGER.info("[RTRenderer] Shadow pipeline ready");
+            } else {
+                RTBridgeMod.LOGGER.error("[RTRenderer] Shadow pipeline build failed");
+                return;
+            }
+        }
+
+        // TODO: allocate command buffer on rtThread's command pool
+        // TODO: vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shadowPipeline.pipeline)
+        // TODO: vkCmdBindDescriptorSets(cmd, ...) — bind TLAS, shadow image, GBuffer
+        // TODO: vkCmdTraceRaysKHR(cmd,
+        //           shadowSBT.raygenRegion(),
+        //           shadowSBT.missRegion(),
+        //           shadowSBT.hitRegion(),
+        //           shadowSBT.callableRegion(),
+        //           width, height, 1)
+        // TODO: barrier image layout GENERAL → SHADER_READ_ONLY
+        // TODO: store image handle in shadowBufferId
+
+        RTBridgeMod.LOGGER.debug("[RTRenderer] Shadow pass dispatched frame={}", frameIdx);
     }
 
     /**
