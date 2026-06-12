@@ -1,0 +1,52 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 1, set = 0, rgba16f) uniform image2D reflectionImage;
+layout(binding = 2, set = 0) uniform sampler2D gDepth;
+layout(binding = 3, set = 0) uniform sampler2D gNormal;
+
+layout(binding = 4, set = 0) uniform CameraUBO {
+    mat4 invView;
+    mat4 invProj;
+    vec4 lightDir;
+} cam;
+
+layout(location = 0) rayPayloadEXT vec3 hitColor;
+
+void main() {
+    const vec2 uv = (vec2(gl_LaunchIDEXT.xy) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
+
+    float depth = texture(gDepth, uv).r;
+    if (depth >= 1.0) {
+        imageStore(reflectionImage, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 1.0));
+        return;
+    }
+
+    // Reconstruct world pos
+    vec4 ndc     = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 viewPos = cam.invProj * ndc;
+    viewPos     /= viewPos.w;
+    vec3 worldPos = (cam.invView * viewPos).xyz;
+
+    vec3 N = normalize(texture(gNormal, uv).xyz * 2.0 - 1.0);
+
+    // Camera position = invView[3]
+    vec3 camPos  = cam.invView[3].xyz;
+    vec3 viewDir = normalize(worldPos - camPos);
+
+    // Reflect view ray around normal
+    vec3 reflDir = reflect(viewDir, N);
+
+    hitColor = vec3(0.0);
+    traceRayEXT(topLevelAS,
+        gl_RayFlagsOpaqueEXT,
+        0xFF, 0, 0, 0,
+        worldPos + N * 0.005,   // origin with bias
+        0.001,
+        reflDir,
+        1000.0,
+        0);
+
+    imageStore(reflectionImage, ivec2(gl_LaunchIDEXT.xy), vec4(hitColor, 1.0));
+}

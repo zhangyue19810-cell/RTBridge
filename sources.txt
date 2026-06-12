@@ -30,3 +30,6 @@ src/main/java/com/rtbridge/vulkan/VulkanBuffer.java
 src/main/java/com/rtbridge/vulkan/BLASEntry.java
 src/main/java/com/rtbridge/vulkan/RTPipeline.java
 src/main/java/com/rtbridge/vulkan/ShaderBindingTable.java
+src/main/java/com/rtbridge/vulkan/CameraUBO.java
+src/main/java/com/rtbridge/vulkan/RTImageSet.java
+src/main/java/com/rtbridge/vulkan/DescriptorPool.java
