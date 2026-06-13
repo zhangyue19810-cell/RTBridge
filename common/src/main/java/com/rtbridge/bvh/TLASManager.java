@@ -1,6 +1,6 @@
-import org.lwjgl.PointerBuffer;
 package com.rtbridge.bvh;
 
+import org.lwjgl.PointerBuffer;
 import com.rtbridge.RTBridgeMod;
 import com.rtbridge.vulkan.BLASEntry;
 import com.rtbridge.vulkan.VulkanBuffer;
