@@ -212,40 +212,34 @@ public class RTRenderer {
      *
      * Output: shadowBufferId (R8 or R16F texture)
      */
-    // Shadow pipeline (lazy init)
-    private com.rtbridge.vulkan.RTPipeline      shadowPipeline;
-    private com.rtbridge.vulkan.ShaderBindingTable shadowSBT;
-    private boolean shadowPipelineReady = false;
+    private ShadowPass shadowPass;
+    private com.rtbridge.vulkan.RTImageSet rtImages;
+    private int renderWidth = 1920, renderHeight = 1080; // 默认分辨率
 
     private void dispatchShadowPass(SceneDatabase scene, long frameIdx) {
-        if (vulkanCtx == null) return;
+        if (vulkanCtx == null || tlasManager == null) return;
 
-        // Lazy init on first frame
-        if (!shadowPipelineReady) {
-            shadowPipeline = new com.rtbridge.vulkan.RTPipeline(vulkanCtx);
-            if (shadowPipeline.build("shadow")) {
-                shadowSBT = new com.rtbridge.vulkan.ShaderBindingTable(vulkanCtx);
-                shadowSBT.build(shadowPipeline);
-                shadowPipelineReady = true;
-                RTBridgeMod.LOGGER.info("[RTRenderer] Shadow pipeline ready");
-            } else {
-                RTBridgeMod.LOGGER.error("[RTRenderer] Shadow pipeline build failed");
+        // Lazy init
+        if (shadowPass == null) {
+            rtImages = new com.rtbridge.vulkan.RTImageSet(vulkanCtx);
+            rtImages.allocate(renderWidth, renderHeight);
+
+            shadowPass = new ShadowPass(vulkanCtx, tlasManager,
+                rtImages, renderWidth, renderHeight);
+            if (!shadowPass.init()) {
+                RTBridgeMod.LOGGER.error("[RTRenderer] ShadowPass 初始化失败");
+                shadowPass = null;
                 return;
             }
         }
 
-        // TODO: allocate command buffer on rtThread's command pool
-        // TODO: vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shadowPipeline.pipeline)
-        // TODO: vkCmdBindDescriptorSets(cmd, ...) — bind TLAS, shadow image, GBuffer
-        // TODO: vkCmdTraceRaysKHR(cmd,
-        //           shadowSBT.raygenRegion(),
-        //           shadowSBT.missRegion(),
-        //           shadowSBT.hitRegion(),
-        //           shadowSBT.callableRegion(),
-        //           width, height, 1)
-        // TODO: barrier image layout GENERAL → SHADER_READ_ONLY
-        // TODO: store image handle in shadowBufferId
+        // 太阳光方向（固定，后续从 MC 世界时间读取）
+        org.joml.Vector3f lightDir = new org.joml.Vector3f(-0.5f, -1f, -0.3f).normalize();
+        org.joml.Matrix4f invView  = new org.joml.Matrix4f(); // TODO: 从 MC camera 读取
+        org.joml.Matrix4f invProj  = new org.joml.Matrix4f(); // TODO: 从 MC camera 读取
 
+        shadowPass.dispatch(invView, invProj, lightDir);
+        shadowBufferId = (int) rtImages.shadowView; // 供 CompositePass 使用
         RTBridgeMod.LOGGER.debug("[RTRenderer] Shadow pass dispatched frame={}", frameIdx);
     }
 

@@ -4,7 +4,6 @@
 layout(location = 0) rayPayloadInEXT float shadowed;
 
 void main() {
-    // Something was hit → in shadow
     shadowed = 1.0;
-    terminateRayEXT();
+    ignoreIntersectionEXT;
 }
