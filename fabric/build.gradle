@@ -32,5 +32,5 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     implementation project(path: ':common', configuration: 'namedElements')
 
-    include(modApi("dev.ryanhcode.sable-companion:sable-companion-fabric:${project.sable_companion_version}"))
+    include(modApi("dev.ryanhcode.sable-companion:sable-companion-fabric-1.21.1:${project.sable_companion_version}"))
 }
