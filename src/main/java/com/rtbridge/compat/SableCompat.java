@@ -8,9 +8,9 @@ import com.rtbridge.scene.cache.EmissiveCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.common.NeoForge;
+
+
+
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 

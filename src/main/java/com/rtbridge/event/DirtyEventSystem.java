@@ -47,7 +47,7 @@ public class DirtyEventSystem {
      * Wire up all the Fabric API callbacks that translate MC world events into
      * DirtyEvent objects.  Called once at mod init.
      */
-    public void registerNeoForgeHooks() {
+    public void registerFabricHooks() {
         registerChunkHooks();
         registerBlockHooks();
         // Entity hooks are registered via mixin — see MixinWorldRenderer

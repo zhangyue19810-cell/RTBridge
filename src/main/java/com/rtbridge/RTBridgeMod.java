@@ -2,22 +2,19 @@ package com.rtbridge;
 
 import com.rtbridge.bvh.AsyncBLASBuilder;
 import com.rtbridge.buffer.TripleBuffer;
+import com.rtbridge.compat.SableCompat;
 import com.rtbridge.event.DirtyEventSystem;
 import com.rtbridge.render.CompositePass;
 import com.rtbridge.render.RTRenderer;
 import com.rtbridge.scene.SceneDatabase;
 import com.rtbridge.scene.SceneExtractor;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import net.neoforged.neoforge.common.NeoForge;
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Mod(value = RTBridgeMod.MOD_ID, dist = Dist.CLIENT)
-public class RTBridgeMod {
+public class RTBridgeMod implements ClientModInitializer {
 
     public static final String MOD_ID = "rtbridge";
     public static final Logger LOGGER  = LoggerFactory.getLogger(MOD_ID);
@@ -28,45 +25,38 @@ public class RTBridgeMod {
     private static TripleBuffer     tripleBuffer;
     private static RTRenderer       rtRenderer;
     private static CompositePass    compositePass;
-    private static SableCompat       sableCompat;
+    private static SableCompat      sableCompat;
 
-    public RTBridgeMod(IEventBus modBus) {
-        modBus.addListener(this::clientSetup);
-    }
-
-    private void clientSetup(FMLClientSetupEvent event) {
-        LOGGER.info("[RTBridge] Client setup start");
+    @Override
+    public void onInitializeClient() {
+        LOGGER.info("[RTBridge] 初始化 v{}", getVersion());
 
         dirtyEventSystem = new DirtyEventSystem();
         sceneDatabase    = new SceneDatabase();
         tripleBuffer     = new TripleBuffer(sceneDatabase);
         sceneExtractor   = new SceneExtractor(dirtyEventSystem, sceneDatabase, tripleBuffer);
 
-        AsyncBLASBuilder blasBuilder = new AsyncBLASBuilder(null); // VulkanContext injected after init
+        AsyncBLASBuilder blasBuilder = new AsyncBLASBuilder(null);
         rtRenderer   = new RTRenderer(blasBuilder);
         compositePass = new CompositePass();
 
-        dirtyEventSystem.registerNeoForgeHooks();
+        dirtyEventSystem.registerFabricHooks();
 
-        // Render hooks
-        NeoForge.EVENT_BUS.addListener(this::onRenderLevelStage);
-
-        // Sable sub-level compat
+        // Sable 兼容
         if (SableCompat.isLoaded()) {
             sableCompat = new SableCompat(dirtyEventSystem,
                 rtRenderer.isAvailable() ? rtRenderer.getTLASManager() : null);
             sableCompat.register();
+            LOGGER.info("[RTBridge] Sable 兼容层已启用");
         }
 
-        LOGGER.info("[RTBridge] Ready. RT={}", rtRenderer.isAvailable() ? "Vulkan" : "disabled");
-    }
-
-    private void onRenderLevelStage(RenderLevelStageEvent event) {
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+        // 渲染钩子
+        WorldRenderEvents.END.register(ctx -> {
             tripleBuffer.advanceFrame();
             rtRenderer.submitFrame(tripleBuffer.getMiddle());
-        }
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
+        });
+
+        WorldRenderEvents.LAST.register(ctx -> {
             if (rtRenderer.hasResult()) {
                 compositePass.composite(
                     rtRenderer.getShadowBuffer(),
@@ -74,10 +64,21 @@ public class RTBridgeMod {
                     rtRenderer.getGIBuffer()
                 );
             }
-        }
+        });
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.world != null) sceneExtractor.tick();
+        });
+
+        LOGGER.info("[RTBridge] 就绪。RT={}", rtRenderer.isAvailable() ? "Vulkan" : "已禁用");
     }
 
     public static DirtyEventSystem getDirtyEventSystem() { return dirtyEventSystem; }
     public static SceneDatabase    getSceneDatabase()    { return sceneDatabase; }
     public static RTRenderer       getRTRenderer()       { return rtRenderer; }
+
+    private static String getVersion() {
+        var v = RTBridgeMod.class.getPackage().getImplementationVersion();
+        return v != null ? v : "dev";
+    }
 }
