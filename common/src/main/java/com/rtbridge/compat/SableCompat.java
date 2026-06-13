@@ -49,12 +49,7 @@ public class SableCompat {
     // ── 可用性检测 ────────────────────────────────────────────────────────────
 
     public static boolean isLoaded() {
-        try {
-            Class.forName("dev.ryanhcode.sable.api.SableCompanion");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+        return isMethodAvailable();
     }
 
     public static boolean isMethodAvailable() {

@@ -336,9 +336,12 @@ public class AsyncBLASBuilder {
 
         // PointerBuffer of range pointers (one per geometry)
         PointerBuffer ppRanges = stack.pointers(range.address());
-        vkCmdBuildAccelerationStructuresKHR(
-            new VkCommandBuffer(cmdBuf, ctx.device),
-            buildInfo, ppRanges);
+        VkAccelerationStructureBuildGeometryInfoKHR.Buffer buildBuf =
+            VkAccelerationStructureBuildGeometryInfoKHR.calloc(1, stack);
+            buildBuf.put(0, buildInfo);
+            vkCmdBuildAccelerationStructuresKHR(
+                new VkCommandBuffer(cmdBuf, ctx.device),
+                buildBuf, ppRanges);
 
         // Barrier: AS build → shader read
         VkMemoryBarrier2.Buffer barrier = VkMemoryBarrier2.calloc(1, stack)
@@ -357,7 +360,7 @@ public class AsyncBLASBuilder {
     }
 
     private long allocCmdBuffer(MemoryStack stack) {
-        LongBuffer pCmd = stack.mallocLong(1);
+        org.lwjgl.PointerBuffer pCmd = stack.mallocPointer(1);
         check(vkAllocateCommandBuffers(ctx.device,
             VkCommandBufferAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)

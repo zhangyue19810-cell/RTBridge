@@ -277,7 +277,7 @@ public class TLASManager implements AutoCloseable {
     private void submitCmds(VkAccelerationStructureBuildGeometryInfoKHR buildInfo,
                              VkAccelerationStructureBuildRangeInfoKHR.Buffer range,
                              MemoryStack stack) {
-        LongBuffer pCmd = stack.mallocLong(1);
+        org.lwjgl.PointerBuffer pCmd = stack.mallocPointer(1);
         vkAllocateCommandBuffers(ctx.device,
             VkCommandBufferAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
@@ -291,7 +291,10 @@ public class TLASManager implements AutoCloseable {
                 .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
                 .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT));
 
-        vkCmdBuildAccelerationStructuresKHR(cmd, buildInfo, stack.pointers(range.address()));
+        VkAccelerationStructureBuildGeometryInfoKHR.Buffer buildInfoBuf =
+                VkAccelerationStructureBuildGeometryInfoKHR.calloc(1, stack);
+            buildInfoBuf.put(0, buildInfo);
+            vkCmdBuildAccelerationStructuresKHR(cmd, buildInfoBuf, stack.pointers(range.address()));
 
         vkEndCommandBuffer(cmd);
 

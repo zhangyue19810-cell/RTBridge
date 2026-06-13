@@ -1,29 +1,13 @@
 {
   "mappings": {
     "com/rtbridge/mixin/MixinGameRenderer": {
-      "renderWorld(FJLnet/minecraft/client/util/math/MatrixStack;)V": "Lnet/minecraft/class_757;renderWorld(FJLnet/minecraft/class_4587;)V"
-    },
-    "com/rtbridge/mixin/MixinLevelChunk": {
-      "<init>(Lnet/minecraft/world/World;Lnet/minecraft/util/math/ChunkPos;Lnet/minecraft/world/chunk/UpgradeData;JLjava/util/Map;[Lnet/minecraft/world/chunk/ChunkSection;)V": "Lnet/minecraft/class_2818;<init>(Lnet/minecraft/class_1937;Lnet/minecraft/class_1923;Lnet/minecraft/class_2843;JLjava/util/Map;[Lnet/minecraft/class_2826;)V"
-    },
-    "com/rtbridge/mixin/MixinWorldRenderer": {
-      "addEntity(Lnet/minecraft/entity/Entity;)V": "Lnet/minecraft/class_761;addEntity(Lnet/minecraft/class_1297;)V",
-      "removeEntity(Lnet/minecraft/entity/Entity;Z)V": "Lnet/minecraft/class_761;removeEntity(Lnet/minecraft/class_1297;Z)V",
-      "scheduleBlockRerenderIfNeeded(IIILnet/minecraft/block/BlockState;Lnet/minecraft/block/BlockState;)V": "Lnet/minecraft/class_761;scheduleBlockRerenderIfNeeded(IIILnet/minecraft/class_2680;Lnet/minecraft/class_2680;)V"
+      "renderWorld": "Lnet/minecraft/class_757;method_3188(Lnet/minecraft/class_9779;)V"
     }
   },
   "data": {
     "named:intermediary": {
       "com/rtbridge/mixin/MixinGameRenderer": {
-        "renderWorld(FJLnet/minecraft/client/util/math/MatrixStack;)V": "Lnet/minecraft/class_757;renderWorld(FJLnet/minecraft/class_4587;)V"
-      },
-      "com/rtbridge/mixin/MixinLevelChunk": {
-        "<init>(Lnet/minecraft/world/World;Lnet/minecraft/util/math/ChunkPos;Lnet/minecraft/world/chunk/UpgradeData;JLjava/util/Map;[Lnet/minecraft/world/chunk/ChunkSection;)V": "Lnet/minecraft/class_2818;<init>(Lnet/minecraft/class_1937;Lnet/minecraft/class_1923;Lnet/minecraft/class_2843;JLjava/util/Map;[Lnet/minecraft/class_2826;)V"
-      },
-      "com/rtbridge/mixin/MixinWorldRenderer": {
-        "addEntity(Lnet/minecraft/entity/Entity;)V": "Lnet/minecraft/class_761;addEntity(Lnet/minecraft/class_1297;)V",
-        "removeEntity(Lnet/minecraft/entity/Entity;Z)V": "Lnet/minecraft/class_761;removeEntity(Lnet/minecraft/class_1297;Z)V",
-        "scheduleBlockRerenderIfNeeded(IIILnet/minecraft/block/BlockState;Lnet/minecraft/block/BlockState;)V": "Lnet/minecraft/class_761;scheduleBlockRerenderIfNeeded(IIILnet/minecraft/class_2680;Lnet/minecraft/class_2680;)V"
+        "renderWorld": "Lnet/minecraft/class_757;method_3188(Lnet/minecraft/class_9779;)V"
       }
     }
   }

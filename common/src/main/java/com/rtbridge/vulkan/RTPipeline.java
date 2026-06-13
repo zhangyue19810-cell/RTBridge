@@ -225,7 +225,7 @@ public class RTPipeline implements AutoCloseable {
         VulkanBuffer.check(vkCreateShaderModule(ctx.device,
             VkShaderModuleCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
-                .pCode(spv.asIntBuffer()),
+                .pCode(spv),
             null, pModule), "vkCreateShaderModule " + spvName);
         return pModule.get(0);
     }
