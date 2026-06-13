@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 import static org.lwjgl.vulkan.KHRAccelerationStructure.*;
+import static org.lwjgl.vulkan.KHRRayTracingPipeline.*;
 import static org.lwjgl.vulkan.VK12.*;
 
 /**
