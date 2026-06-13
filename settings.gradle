@@ -7,8 +7,27 @@ pluginManagement {
     }
 }
 
+dependencyResolutionManagement {
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        maven { url = 'https://maven.neoforged.net/releases' }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'RyanHCode'
+                    url  = 'https://maven.ryanhcode.dev/releases'
+                }
+            }
+            filter {
+                includeGroup 'dev.ryanhcode.sable'
+                includeGroup 'dev.ryanhcode.sable-companion'
+            }
+        }
+        mavenCentral()
+    }
+}
+
 include 'common'
 include 'fabric'
 include 'neoforge'
-
 rootProject.name = 'RTBridge'

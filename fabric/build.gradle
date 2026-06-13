@@ -17,5 +17,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     implementation project(path: ':common', configuration: 'namedElements')
-    modCompileOnly "dev.rew1nd:sable-fabric:${project.sable_version}"
+
+    // Sable Companion — JiJ 进 jar，软依赖 Sable 本体
+    include(modApi("dev.ryanhcode.sable-companion:sable-companion-fabric:${project.sable_companion_version}"))
 }

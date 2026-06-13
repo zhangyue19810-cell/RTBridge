@@ -24,7 +24,7 @@ import java.util.Set;
 /**
  * SableCompat — RTBridge 与 Sable 飞艇子世界的集成。
  *
- * Sable 真实 API 包名：dev.rew1nd.sable.api.SableCompanion
+ * Sable 真实 API 包名：dev.ryanhcode.sable.api.SableCompanion
  * 参考 AirshipCockpit Mod 的做法，使用反射访问，避免硬依赖。
  *
  * 核心方法：
@@ -81,7 +81,7 @@ public class SableCompat {
         if (methodChecked) return methodAvailable;
         methodChecked = true;
         try {
-            sableClass    = Class.forName("dev.rew1nd.sable.api.SableCompanion");
+            sableClass    = Class.forName("dev.ryanhcode.sable.api.SableCompanion");
             Field instFld = sableClass.getField("INSTANCE");
             sableInstance = instFld.get(null);
             projectMethod = sableClass.getMethod("projectOutOfSubLevel",
