@@ -1,0 +1,21 @@
+plugins {
+    id 'architectury-plugin'
+    id 'dev.architectury.loom'
+}
+
+architectury { fabric() }
+
+loom {
+    accessWidenerPath = project(':common').file('src/main/resources/rtbridge.accesswidener')
+}
+
+configurations { developmentFabric.extendsFrom implementation }
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation project(path: ':common', configuration: 'namedElements')
+    modCompileOnly "dev.rew1nd:sable-fabric:${project.sable_version}"
+}

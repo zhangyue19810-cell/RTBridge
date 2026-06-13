@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "rtbridge",
+  "version": "${version}",
+  "name": "RTBridge",
+  "description": "Vulkan RT 桥接渲染器",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.rtbridge.fabric.RTBridgeFabric"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "fabric-api": "*"
+  }
+}
