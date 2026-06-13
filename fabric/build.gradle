@@ -46,8 +46,6 @@ dependencies {
 
     shadowCommon(project(path: ':common', configuration: 'transformProductionFabric')) { transitive false }
 
-    // MC 1.21.1 的 LWJGL 缺少 KHR 扩展类，需要 shadow 进来
-    shadowCommon("org.lwjgl:lwjgl-vulkan:3.3.3") { transitive false }
 }
 
 shadowJar {
