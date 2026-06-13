@@ -35,7 +35,13 @@ public class RTBridgeMod {
         tripleBuffer     = new TripleBuffer(sceneDatabase);
         sceneExtractor   = new SceneExtractor(dirtyEventSystem, sceneDatabase, tripleBuffer);
 
-        AsyncBLASBuilder blasBuilder = new AsyncBLASBuilder(null);
+        AsyncBLASBuilder blasBuilder;
+        try {
+            blasBuilder = new AsyncBLASBuilder(null);
+        } catch (Throwable e) {
+            LOGGER.warn("[RTBridge] AsyncBLASBuilder 初始化失败，RT 禁用: {}", e.getMessage());
+            blasBuilder = null;
+        }
         rtRenderer   = new RTRenderer(blasBuilder);
         compositePass = new CompositePass();
 

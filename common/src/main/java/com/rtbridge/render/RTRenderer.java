@@ -85,17 +85,23 @@ public class RTRenderer {
      */
     private void initVulkan() {
         try {
-            // Vulkan availability probe (stub)
+            // 先检查 LWJGL Vulkan 类是否可用
+            Class.forName("org.lwjgl.vulkan.VkInstance");
+            Class.forName("org.lwjgl.vulkan.KHRAccelerationStructure");
+
             boolean vulkanSupported = checkVulkanSupport();
             rtAvailable.set(vulkanSupported);
             if (vulkanSupported) {
-                RTBridgeMod.LOGGER.info("[RTRenderer] Vulkan RT backend initialised.");
+                RTBridgeMod.LOGGER.info("[RTRenderer] Vulkan RT 初始化完成");
                 allocateOutputBuffers();
             } else {
-                RTBridgeMod.LOGGER.warn("[RTRenderer] Vulkan RT not available — RT disabled.");
+                RTBridgeMod.LOGGER.warn("[RTRenderer] 当前 GPU 不支持 RT，RT 已禁用");
             }
-        } catch (Exception e) {
-            RTBridgeMod.LOGGER.error("[RTRenderer] Vulkan init failed", e);
+        } catch (ClassNotFoundException | NoClassDefFoundError e) {
+            RTBridgeMod.LOGGER.warn("[RTRenderer] LWJGL Vulkan KHR 扩展不可用，RT 已禁用: {}", e.getMessage());
+            rtAvailable.set(false);
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[RTRenderer] Vulkan 初始化失败", e);
             rtAvailable.set(false);
         }
     }
