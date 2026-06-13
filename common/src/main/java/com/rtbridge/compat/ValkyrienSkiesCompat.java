@@ -95,7 +95,7 @@ public class ValkyrienSkiesCompat {
             shipId,
             (ownerId, entry) -> {
                 tlasBuffer.swapBLAS(ownerId, (int) entry.asHandle);
-                RTBridgeMod.LOGGER.debug("[VS2Compat] Placeholder BLAS {} for ship {}", blasHandle, ownerId);
+                RTBridgeMod.LOGGER.debug("[VS2Compat] Placeholder BLAS {} for ship {}", entry.asHandle, ownerId);
             }
         );
     }
