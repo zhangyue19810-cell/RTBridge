@@ -13,4 +13,11 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // LWJGL Vulkan — MC 已捆绑，只需声明编译依赖
+    implementation "org.lwjgl:lwjgl-vulkan:3.3.3"
+    implementation "org.lwjgl:lwjgl:3.3.3"
+
+    // JOML
+    implementation "org.joml:joml:1.10.5"
 }

@@ -51,4 +51,8 @@ public class RTBridgeMod {
     public static DirtyEventSystem getDirtyEventSystem() { return dirtyEventSystem; }
     public static SceneDatabase    getSceneDatabase()    { return sceneDatabase; }
     public static RTRenderer       getRTRenderer()       { return rtRenderer; }
+    public static TripleBuffer     getTripleBuffer()     { return tripleBuffer; }
+    public static CompositePass    getCompositePass()    { return compositePass; }
+    public static SceneExtractor   getSceneExtractor()   { return sceneExtractor; }
+    public static SableCompat      getSableCompat()      { return sableCompat; }
 }
