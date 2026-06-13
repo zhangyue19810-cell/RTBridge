@@ -44,8 +44,6 @@ dependencies {
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
 
-    // LWJGL Vulkan — shadow 进 jar，提供 KHR RT 扩展
-    shadowCommon("org.lwjgl:lwjgl-vulkan:3.3.3") { transitive false }
     shadowCommon(project(path: ':common', configuration: 'transformProductionFabric')) { transitive false }
 }
 

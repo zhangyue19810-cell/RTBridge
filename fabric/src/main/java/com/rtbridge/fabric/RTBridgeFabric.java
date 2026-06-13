@@ -13,6 +13,8 @@ public class RTBridgeFabric implements ClientModInitializer {
 
         // 渲染钩子
         WorldRenderEvents.END.register(ctx -> {
+            // 第一帧：初始化 Vulkan（此时 LWJGL 已就绪）
+            RTBridgeMod.getRTRenderer().initOnFirstFrame();
             RTBridgeMod.getTripleBuffer().advanceFrame();
             RTBridgeMod.getRTRenderer().submitFrame(
                 RTBridgeMod.getTripleBuffer().getMiddle());
