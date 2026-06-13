@@ -41,25 +41,42 @@ public class VulkanContext implements AutoCloseable {
     );
 
     public boolean init() {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            // 先尝试从 Iris 获取已有 Vulkan 实例
-            if (!tryGetIrisInstance()) {
-                // Iris 没有，自己创建
-                if (!createInstance(stack)) return false;
-                ownsInstance = true;
+        // VkInstance.getInstanceCapabilities 会加载所有扩展，RTX 5070 扩展数量巨大
+        // 必须在大栈线程里运行，避免 StackOverflow
+        boolean[] result = {false};
+        Throwable[] err  = {null};
+
+        Thread t = new Thread(null, () -> {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                if (!tryGetIrisInstance()) {
+                    if (!createInstance(stack)) return;
+                    ownsInstance = true;
+                }
+                if (!pickPhysDevice(stack)) return;
+                if (!createDevice(stack))   return;
+                queryRTProps(stack);
+                RTBridgeMod.LOGGER.info("[Vulkan] 就绪 — {} API={}.{}",
+                    getDeviceName(),
+                    VK_VERSION_MAJOR(getApiVersion()),
+                    VK_VERSION_MINOR(getApiVersion()));
+                result[0] = true;
+            } catch (Throwable e) {
+                err[0] = e;
             }
-            if (!pickPhysDevice(stack))   return false;
-            if (!createDevice(stack))     return false;
-            queryRTProps(stack);
-            RTBridgeMod.LOGGER.info("[Vulkan] 就绪 — {} API={}.{}",
-                getDeviceName(),
-                VK_VERSION_MAJOR(getApiVersion()),
-                VK_VERSION_MINOR(getApiVersion()));
-            return true;
-        } catch (Throwable e) {
-            RTBridgeMod.LOGGER.error("[Vulkan] 初始化失败: {}", e.getMessage());
+        }, "RTBridge-VulkanInit", 64L * 1024 * 1024); // 64MB 栈
+
+        try {
+            t.start();
+            t.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             return false;
         }
+
+        if (err[0] != null) {
+            RTBridgeMod.LOGGER.error("[Vulkan] 初始化失败: {}", err[0].getMessage());
+        }
+        return result[0];
     }
 
     // ── 尝试从 Iris 获取 VkInstance ──────────────────────────────────────────
