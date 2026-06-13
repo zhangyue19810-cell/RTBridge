@@ -1,6 +1,8 @@
 package com.rtbridge.render;
 
 import com.rtbridge.RTBridgeMod;
+import com.rtbridge.vulkan.VulkanContext;
+import com.rtbridge.bvh.TLASManager;
 import com.rtbridge.bvh.AsyncBLASBuilder;
 import com.rtbridge.bvh.TLASInstanceBuffer;
 import com.rtbridge.light.LightCluster;

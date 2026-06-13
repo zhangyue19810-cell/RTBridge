@@ -5,9 +5,9 @@ import com.rtbridge.bvh.TLASManager;
 import com.rtbridge.event.DirtyEventSystem;
 import com.rtbridge.scene.SceneDatabase;
 import com.rtbridge.scene.cache.EmissiveCache;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -76,23 +76,23 @@ public class SableCompat {
 
     // ── 坐标转换 ──────────────────────────────────────────────────────────────
 
-    public static Vec3 toWorldPos(Level level, BlockPos localPos) {
-        if (!isMethodAvailable()) return Vec3.atCenterOf(localPos);
+    public static Vec3d toWorldPos(World level, BlockPos localPos) {
+        if (!isMethodAvailable()) return Vec3d.ofCenter(localPos);
         try {
-            return (Vec3) projectMethod.invoke(sableInstance, level, localPos);
+            return (Vec3d) projectMethod.invoke(sableInstance, level, localPos);
         } catch (Exception e) {
-            return Vec3.atCenterOf(localPos);
+            return Vec3d.ofCenter(localPos);
         }
     }
 
     // ── 每帧 Tick（由平台入口调用）────────────────────────────────────────────
 
-    public void tick(Level level) {
+    public void tick(World level) {
         if (!isMethodAvailable()) return;
         updateShipLights(level);
     }
 
-    private void updateShipLights(Level level) {
+    private void updateShipLights(World level) {
         SceneDatabase db = RTBridgeMod.getSceneDatabase();
         if (db == null) return;
 
@@ -104,7 +104,7 @@ public class SableCompat {
             }
             for (EmissiveCache.EmissiveEntry e : toUpdate) {
                 if (e.blockPos() == null) continue;
-                Vec3 worldVec = toWorldPos(level, e.blockPos());
+                Vec3d worldVec = toWorldPos(level, e.blockPos());
                 Vector3f worldPos = new Vector3f(
                     (float) worldVec.x,
                     (float) worldVec.y,
@@ -121,7 +121,7 @@ public class SableCompat {
 
     // ── 飞艇生命周期 ──────────────────────────────────────────────────────────
 
-    public void onShipCreate(long shipId, Level level, BlockPos originPos) {
+    public void onShipCreate(long shipId, World level, BlockPos originPos) {
         RTBridgeMod.LOGGER.info("[SableCompat] 飞艇创建: id={}", shipId);
         knownSubLevels.put(shipId, 0L);
         dirtyEvents.postShipCreate(shipId);
@@ -140,7 +140,7 @@ public class SableCompat {
         dirtyEvents.postShipDestroy(shipId);
     }
 
-    public void onShipMove(long shipId, Level level, BlockPos newOrigin) {
+    public void onShipMove(long shipId, World level, BlockPos newOrigin) {
         if (tlasManager != null) {
             Vec3 wPos = toWorldPos(level, newOrigin);
             Matrix4f transform = new Matrix4f().translate(
