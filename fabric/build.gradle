@@ -1,6 +1,7 @@
 plugins {
     id 'architectury-plugin'
     id 'dev.architectury.loom'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 architectury { fabric() }
@@ -9,11 +10,49 @@ loom {
     accessWidenerPath = project(':common').file('src/main/resources/rtbridge.accesswidener')
 }
 
+configurations {
+    common
+    shadowCommon
+    developmentFabric.extendsFrom common
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+}
+
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'RyanHCode'
+                url  = 'https://maven.ryanhcode.dev/releases'
+            }
+        }
+        filter {
+            includeGroup 'dev.ryanhcode.sable-companion'
+        }
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    implementation project(path: ':common', configuration: 'namedElements')
-    // Sable 通过反射访问，不需要编译期依赖
+
+    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
+    shadowCommon(project(path: ':common', configuration: 'transformProductionFabric')) { transitive false }
 }
+
+shadowJar {
+    exclude 'architectury.common.json'
+    configurations = [project.configurations.shadowCommon]
+    archiveClassifier = 'dev-shadow'
+}
+
+remapJar {
+    injectAccessWidener = true
+    input.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = ''
+}
+
+jar { archiveClassifier = 'dev' }

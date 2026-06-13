@@ -72,7 +72,7 @@ public class RTCommandBuffer implements AutoCloseable {
             vkResetFences(ctx.device, stack.longs(fence));
 
             // 重置命令缓冲
-            vkResetCommandBuffer(commandBuffer, 0);
+            vkResetCommandBuffer(new VkCommandBuffer(commandBuffer, ctx.device), 0);
 
             // 开始录制
             VulkanBuffer.check(vkBeginCommandBuffer(
