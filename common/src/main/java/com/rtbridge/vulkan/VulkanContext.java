@@ -53,13 +53,7 @@ public class VulkanContext implements AutoCloseable {
     }
 
     private boolean createInstance(MemoryStack stack) {
-        // 确保 LWJGL Vulkan 函数指针已加载
-        try {
-            org.lwjgl.vulkan.VK.create();
-        } catch (Exception e) {
-            RTBridgeMod.LOGGER.warn("[Vulkan] VK.create() 失败: {}", e.getMessage());
-            return false;
-        }
+        // VK.create() 由 MC/Iris 已调用，直接跳过
         VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack)
             .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
             .pApplicationName(stack.UTF8Safe("RTBridge"))
