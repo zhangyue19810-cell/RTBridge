@@ -11,6 +11,7 @@ import java.nio.LongBuffer;
 
 import static org.lwjgl.vulkan.KHRRayTracingPipeline.*;
 import static org.lwjgl.vulkan.VK12.*;
+import static org.lwjgl.vulkan.KHRAccelerationStructure.*;
 
 /**
  * RTPipeline — creates a VkPipeline for one RT pass (shadow / reflection / GI).

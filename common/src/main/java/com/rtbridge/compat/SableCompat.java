@@ -23,7 +23,7 @@ import java.util.Map;
  * 平台事件注册由 fabric/neoforge 各自的入口负责调用 tick()。
  *
  * 核心方法：
- *   projectOutOfSubLevel(Level, BlockPos) → Vec3
+ *   projectOutOfSubLevel(World, BlockPos) → Vec3d
  *   将飞艇本地坐标转换为世界坐标
  */
 public class SableCompat {
@@ -59,7 +59,7 @@ public class SableCompat {
             Class<?> cls    = Class.forName("dev.ryanhcode.sable.api.SableCompanion");
             Field instFld   = cls.getField("INSTANCE");
             sableInstance   = instFld.get(null);
-            projectMethod   = cls.getMethod("projectOutOfSubLevel", Level.class, BlockPos.class);
+            projectMethod   = cls.getMethod("projectOutOfSubLevel", World.class, BlockPos.class);
             methodAvailable = true;
             RTBridgeMod.LOGGER.info("[SableCompat] Sable Companion API 加载成功");
         } catch (Exception e) {
@@ -121,7 +121,7 @@ public class SableCompat {
         knownSubLevels.put(shipId, 0L);
         dirtyEvents.postShipCreate(shipId);
         if (tlasManager != null) {
-            Vec3 wPos = toWorldPos(level, originPos);
+            Vec3d wPos = toWorldPos(level, originPos);
             Matrix4f transform = new Matrix4f().translate(
                 (float) wPos.x, (float) wPos.y, (float) wPos.z);
             var placeholder = new com.rtbridge.vulkan.BLASEntry(-1L);
@@ -137,7 +137,7 @@ public class SableCompat {
 
     public void onShipMove(long shipId, World level, BlockPos newOrigin) {
         if (tlasManager != null) {
-            Vec3 wPos = toWorldPos(level, newOrigin);
+            Vec3d wPos = toWorldPos(level, newOrigin);
             Matrix4f transform = new Matrix4f().translate(
                 (float) wPos.x, (float) wPos.y, (float) wPos.z);
             tlasManager.updateTransform(shipId, transform);

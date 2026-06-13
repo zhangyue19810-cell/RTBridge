@@ -7,6 +7,7 @@ import org.lwjgl.vulkan.*;
 import java.nio.LongBuffer;
 
 import static org.lwjgl.vulkan.VK12.*;
+import static org.lwjgl.vulkan.KHRAccelerationStructure.*;
 
 public class VulkanBuffer implements AutoCloseable {
 

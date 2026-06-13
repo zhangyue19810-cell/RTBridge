@@ -85,7 +85,7 @@ public class ValkyrienSkiesCompat {
         // 1. Register an identity placeholder in the TLAS so RT can start
         //    using the ship (as an AABB) before the BLAS is ready.
         Matrix4f placeholderTransform = buildTransformMatrix(initialPos, initialRot, new Vector3f(1f));
-        tlasBuffer.addInstance(shipId, null, placeholderTransform);
+        tlasBuffer.addInstance(shipId, new com.rtbridge.vulkan.BLASEntry(-1L), placeholderTransform);
 
         // 2. Post event so SceneExtractor queues the mesh extraction + BLAS build
         RTBridgeMod.getDirtyEventSystem().postShipCreate(shipId);

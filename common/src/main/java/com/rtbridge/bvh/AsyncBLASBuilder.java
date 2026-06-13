@@ -1,3 +1,4 @@
+import org.lwjgl.PointerBuffer;
 package com.rtbridge.bvh;
 
 import com.rtbridge.RTBridgeMod;
@@ -343,18 +344,15 @@ public class AsyncBLASBuilder {
                 new VkCommandBuffer(cmdBuf, ctx.device),
                 buildBuf, ppRanges);
 
-        // Barrier: AS build → shader read
-        VkMemoryBarrier2.Buffer barrier = VkMemoryBarrier2.calloc(1, stack)
-            .sType(VK_STRUCTURE_TYPE_MEMORY_BARRIER_2)
-            .srcStageMask(VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR)
-            .srcAccessMask(VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR)
-            .dstStageMask(VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR)
-            .dstAccessMask(VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR);
-
-        vkCmdPipelineBarrier2(new VkCommandBuffer(cmdBuf, ctx.device),
-            VkDependencyInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_DEPENDENCY_INFO)
-                .pMemoryBarriers(barrier));
+        // Barrier: AS build → shader read (VK 1.2 pipeline barrier)
+        VkMemoryBarrier.Buffer memBarrier = VkMemoryBarrier.calloc(1, stack)
+            .sType(VK_STRUCTURE_TYPE_MEMORY_BARRIER)
+            .srcAccessMask(VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR)
+            .dstAccessMask(VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+        vkCmdPipelineBarrier(new VkCommandBuffer(cmdBuf, ctx.device),
+            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+            0, memBarrier, null, null);
 
         submitAndWait(cmdBuf, stack);
     }

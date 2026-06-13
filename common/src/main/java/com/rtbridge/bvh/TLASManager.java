@@ -1,3 +1,4 @@
+import org.lwjgl.PointerBuffer;
 package com.rtbridge.bvh;
 
 import com.rtbridge.RTBridgeMod;
