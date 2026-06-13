@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "rtbridge",
-  "version": "${version}",
+  "version": "0.1.0",
   "name": "RTBridge",
   "description": "Vulkan RT 桥接渲染器",
   "environment": "client",

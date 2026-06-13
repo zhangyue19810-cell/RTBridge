@@ -85,9 +85,9 @@ public class RTRenderer {
      */
     private void initVulkan() {
         try {
-            // 先检查 LWJGL Vulkan 类是否可用
+            // 先检查 LWJGL Vulkan RT 类是否可用
             Class.forName("org.lwjgl.vulkan.VkInstance");
-            Class.forName("org.lwjgl.vulkan.KHRAccelerationStructure");
+            Class.forName("org.lwjgl.vulkan.VkAccelerationStructureCreateInfoKHR");
 
             boolean vulkanSupported = checkVulkanSupport();
             rtAvailable.set(vulkanSupported);
