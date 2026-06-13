@@ -46,6 +46,9 @@ dependencies {
 
     shadowCommon(project(path: ':common', configuration: 'transformProductionFabric')) { transitive false }
 
+    // MC 不含 lwjgl-vulkan，必须 shadow 进来
+    shadowCommon("org.lwjgl:lwjgl-vulkan:3.3.3") { transitive false }
+
 }
 
 shadowJar {

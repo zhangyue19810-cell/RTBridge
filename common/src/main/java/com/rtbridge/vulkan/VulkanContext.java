@@ -87,6 +87,18 @@ public class VulkanContext implements AutoCloseable {
     // ── 自建 Instance ────────────────────────────────────────────────────────
 
     private boolean createInstance(MemoryStack stack) {
+        // 初始化 LWJGL Vulkan 函数指针（加载 vulkan-1.dll/so）
+        try {
+            org.lwjgl.vulkan.VK.create();
+            RTBridgeMod.LOGGER.info("[Vulkan] VK.create() 成功");
+        } catch (IllegalStateException e) {
+            // "already created" 说明已经初始化过，继续即可
+            RTBridgeMod.LOGGER.debug("[Vulkan] VK 已初始化: {}", e.getMessage());
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[Vulkan] VK.create() 失败: {}", e.getMessage());
+            return false;
+        }
+
         VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack)
             .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
             .pApplicationName(stack.UTF8Safe("RTBridge"))
