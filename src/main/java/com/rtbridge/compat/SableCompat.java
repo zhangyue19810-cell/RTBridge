@@ -5,48 +5,54 @@ import com.rtbridge.bvh.TLASManager;
 import com.rtbridge.event.DirtyEventSystem;
 import com.rtbridge.scene.SceneDatabase;
 import com.rtbridge.scene.cache.EmissiveCache;
-import com.rtbridge.scene.cache.TransformCache;
-import dev.ryanhcode.sable.companion.SableCompanion;
-import dev.ryanhcode.sable.companion.SubLevelAccess;
-import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.loading.FMLLoader;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.joml.Matrix4f;
-import org.joml.Quaterniond;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * SableCompat — RTBridge integration with Sable sub-levels.
+ * SableCompat — RTBridge 与 Sable 飞艇子世界的集成。
  *
- * Sable uses "sub-levels" as moving block structures (airships, vehicles).
- * Each sub-level has a Pose3dc (position + rotation) updated every tick.
+ * Sable 真实 API 包名：dev.rew1nd.sable.api.SableCompanion
+ * 参考 AirshipCockpit Mod 的做法，使用反射访问，避免硬依赖。
  *
- * RTBridge rules (from spec §11, adapted for Sable):
- *   SubLevel MOVE/ROTATE → TLAS Instance Transform only  (no BLAS rebuild)
- *   SubLevel LOAD        → async BLAS build + placeholder TLAS instance
- *   SubLevel UNLOAD      → remove BLAS + TLAS instance
- *   SubLevel MODIFIED    → queue BLAS rebuild
+ * 核心方法：
+ *   projectOutOfSubLevel(Level, BlockPos) → Vec3
+ *   将飞艇本地坐标转换为世界坐标
  *
- * Uses sable-companion (lightweight, no hard dep on full Sable).
- * Safe to load even when Sable is absent — companion provides no-op defaults.
+ * RTBridge 规则（spec §11）：
+ *   子世界 MOVE/ROTATE → 只更新 TLAS Instance Transform（不重建 BLAS）
+ *   子世界 LOAD        → 异步 BLAS 构建 + 占位 TLAS 实例
+ *   子世界 UNLOAD      → 移除 BLAS + TLAS 实例
  */
 public class SableCompat {
+
+    // ── 反射缓存 ───────────────────────────────────────────────────────────────
+
+    private static boolean methodChecked   = false;
+    private static boolean methodAvailable = false;
+
+    private static Object  sableInstance; // SableCompanion.INSTANCE
+    private static Method  projectMethod;  // projectOutOfSubLevel(Level, BlockPos)
+    private static Class<?>  sableClass;
+
+    // ── RTBridge 引用 ──────────────────────────────────────────────────────────
 
     private final DirtyEventSystem dirtyEvents;
     private final TLASManager      tlasManager;
 
-    // Track known sub-levels: subLevelId → last transform hash
-    // Used to detect movement without a dedicated event
+    // 已知子世界：id → 上一帧位置哈希（用于检测移动）
     private final Map<Long, Long> knownSubLevels = new HashMap<>();
 
     public SableCompat(DirtyEventSystem dirtyEvents, TLASManager tlasManager) {
@@ -54,176 +60,169 @@ public class SableCompat {
         this.tlasManager = tlasManager;
     }
 
-    // ── Registration ──────────────────────────────────────────────────────────
+    // ── 注册 ──────────────────────────────────────────────────────────────────
 
     public void register() {
         NeoForge.EVENT_BUS.addListener(this::onClientTick);
-        RTBridgeMod.LOGGER.info("[SableCompat] Registered (Sable present={})", isLoaded());
+        RTBridgeMod.LOGGER.info("[SableCompat] 已注册，Sable 存在={}", isLoaded());
     }
 
-    // ── Per-tick scan ─────────────────────────────────────────────────────────
-
-    /**
-     * Called every client tick.
-     * Companion has no push events, so we pull sub-level state each tick
-     * and diff against last known state.
-     */
-    private void onClientTick(ClientTickEvent.Post event) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return;
-
-        Level level = mc.level;
-        Set<Long> currentIds = new HashSet<>();
-
-        // Iterate all sub-levels via companion
-        SableCompanion.INSTANCE.forEachSubLevel(level, subLevel -> {
-            long id = subLevelId(subLevel);
-            currentIds.add(id);
-
-            if (!knownSubLevels.containsKey(id)) {
-                // New sub-level discovered
-                onSubLevelLoaded(id, subLevel);
-            } else {
-                // Check if transform changed
-                long transformHash = hashPose(subLevel);
-                if (knownSubLevels.get(id) != transformHash) {
-                    onSubLevelMoved(id, subLevel);
-                    knownSubLevels.put(id, transformHash);
-                }
-            }
-        });
-
-        // Find removed sub-levels
-        Set<Long> removed = new HashSet<>(knownSubLevels.keySet());
-        removed.removeAll(currentIds);
-        for (long id : removed) {
-            onSubLevelUnloaded(id);
-        }
-    }
-
-    // ── Sub-level lifecycle ───────────────────────────────────────────────────
-
-    private void onSubLevelLoaded(long id, SubLevelAccess subLevel) {
-        RTBridgeMod.LOGGER.info("[SableCompat] SubLevel loaded: {}", id);
-        knownSubLevels.put(id, hashPose(subLevel));
-
-        // Register placeholder transform immediately
-        Matrix4f transform = poseToMatrix(subLevel);
-        tlasManager.addInstance(id, dummyBLAS(), transform);
-
-        // Post event → SceneExtractor queues async BLAS build
-        dirtyEvents.postShipCreate(id);
-    }
-
-    private void onSubLevelMoved(long id, SubLevelAccess subLevel) {
-        // MOVE: only update TLAS transform, never rebuild BLAS
-        Matrix4f transform = poseToMatrix(subLevel);
-        tlasManager.updateTransform(id, transform);
-        dirtyEvents.postShipMove(id);
-
-        // Update emissive light world positions for this sub-level
-        updateSubLevelLights(id, subLevel);
-    }
-
-    private void onSubLevelUnloaded(long id) {
-        RTBridgeMod.LOGGER.info("[SableCompat] SubLevel unloaded: {}", id);
-        knownSubLevels.remove(id);
-        tlasManager.removeInstance(id);
-        dirtyEvents.postShipDestroy(id);
-    }
-
-    // ── Emissive lights ───────────────────────────────────────────────────────
-
-    /**
-     * Re-project sub-level-local emissive positions to world space.
-     * Called every time the sub-level moves.
-     */
-    private void updateSubLevelLights(long subLevelId, SubLevelAccess subLevel) {
-        SceneDatabase back = RTBridgeMod.getSceneDatabase();
-        if (back == null) return;
-
-        back.writeLock();
-        try {
-            for (EmissiveCache.EmissiveEntry e : back.emissiveCache().all()) {
-                if (!e.isOnShip() || e.shipId() != subLevelId) continue;
-
-                // Transform local position → world space via sub-level pose
-                org.joml.primitives.AABBd aabb = new org.joml.primitives.AABBd();
-                var pose = subLevel.logicalPose();
-                // pose.transformPosition returns a new Vec3d
-                var worldPos = pose.transformPosition(
-                    e.worldPos().x, e.worldPos().y, e.worldPos().z);
-
-                // Re-add with updated world position
-                // (EmissiveEntry is a record; remove + re-add)
-                back.emissiveCache().remove(e.id());
-                back.emissiveCache().addShipLight(
-                    e.blockPos(),
-                    new Vector3f((float) worldPos.x, (float) worldPos.y, (float) worldPos.z),
-                    e.color(), e.intensity(), e.radius(), subLevelId);
-            }
-        } finally {
-            back.writeUnlock();
-        }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /**
-     * Convert Sable Pose3dc → JOML Matrix4f for TLAS instance transform.
-     */
-    private Matrix4f poseToMatrix(SubLevelAccess subLevel) {
-        var pose = subLevel.logicalPose();
-
-        // Sable Pose3dc: position() → Vector3dc, orientation() → Quaterniondc
-        var pos  = pose.position();
-        var rot  = pose.orientation();
-
-        return new Matrix4f()
-            .translate((float) pos.x(), (float) pos.y(), (float) pos.z())
-            .rotate(new Quaternionf(
-                (float) rot.x(), (float) rot.y(),
-                (float) rot.z(), (float) rot.w()));
-    }
-
-    /**
-     * Stable ID for a sub-level.
-     * Companion exposes hashCode() — use it as a stable ID within a session.
-     */
-    private long subLevelId(SubLevelAccess subLevel) {
-        return subLevel.id();
-    }
-
-    /**
-     * Hash current pose for change detection.
-     * XOR position and orientation components into a long.
-     */
-    private long hashPose(SubLevelAccess subLevel) {
-        var pose = subLevel.logicalPose();
-        var pos  = pose.position();
-        var rot  = pose.orientation();
-        long h   = Double.doubleToLongBits(pos.x())
-                 ^ Double.doubleToLongBits(pos.y()) * 31L
-                 ^ Double.doubleToLongBits(pos.z()) * 961L
-                 ^ Double.doubleToLongBits(rot.w()) * 29791L;
-        return h;
-    }
-
-    /** Placeholder BLAS entry until async build completes. */
-    private com.rtbridge.vulkan.BLASEntry dummyBLAS() {
-        var e = new com.rtbridge.vulkan.BLASEntry(-1L);
-        e.deviceAddress = 0L;
-        return e;
-    }
-
-    // ── Availability ──────────────────────────────────────────────────────────
+    // ── 可用性检测 ────────────────────────────────────────────────────────────
 
     public static boolean isLoaded() {
+        return ModList.get().isLoaded("sable");
+    }
+
+    /**
+     * 检测 Sable Companion API 是否可通过反射访问。
+     * 与 AirshipCockpit 一致：用 Class.forName 探测。
+     */
+    public static boolean isMethodAvailable() {
+        if (methodChecked) return methodAvailable;
+        methodChecked = true;
         try {
-            Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
+            sableClass    = Class.forName("dev.rew1nd.sable.api.SableCompanion");
+            Field instFld = sableClass.getField("INSTANCE");
+            sableInstance = instFld.get(null);
+            projectMethod = sableClass.getMethod("projectOutOfSubLevel",
+                Level.class, BlockPos.class);
+            methodAvailable = true;
+            RTBridgeMod.LOGGER.info("[SableCompat] Sable Companion API 加载成功");
+        } catch (Exception e) {
+            methodAvailable = false;
+            RTBridgeMod.LOGGER.warn("[SableCompat] Sable Companion API 未找到，将使用原始坐标");
         }
+        return methodAvailable;
+    }
+
+    // ── 坐标转换（核心方法）──────────────────────────────────────────────────
+
+    /**
+     * 将飞艇本地坐标转换为世界坐标。
+     * 等同于 SableCompanion.INSTANCE.projectOutOfSubLevel(level, localPos)
+     *
+     * @param level    当前客户端 Level
+     * @param localPos 飞艇内的方块本地坐标
+     * @return 世界坐标 Vec3，失败时返回方块中心坐标
+     */
+    public static Vec3 toWorldPos(Level level, BlockPos localPos) {
+        if (!isMethodAvailable()) {
+            return Vec3.atCenterOf(localPos);
+        }
+        try {
+            return (Vec3) projectMethod.invoke(sableInstance, level, localPos);
+        } catch (Exception e) {
+            RTBridgeMod.LOGGER.debug("[SableCompat] projectOutOfSubLevel 调用失败: {}", e.getMessage());
+            return Vec3.atCenterOf(localPos);
+        }
+    }
+
+    // ── 每帧 Tick ─────────────────────────────────────────────────────────────
+
+    private void onClientTick(ClientTickEvent.Post event) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.level == null || !isMethodAvailable()) return;
+
+        // 由于 Sable 没有推送式事件，每帧轮询子世界列表
+        // TODO: 通过 SableCompanion 获取所有活跃子世界列表
+        // 目前通过 RTBridgeMod 的 SceneDatabase 里已注册的 ship 来轮询
+        updateKnownSubLevels(mc.level);
+    }
+
+    /**
+     * 对每个已知飞艇：检测是否移动，更新 TLAS Transform 和发光光源世界坐标。
+     */
+    private void updateKnownSubLevels(Level level) {
+        // TODO: 当 Sable 提供 getAllSubLevels() 接口时替换下方逻辑
+        // 目前：遍历 SceneDatabase 中标记为 isOnShip 的光源
+        // 以此推断活跃飞艇 ID，并重新投影光源位置
+
+        SceneDatabase db = RTBridgeMod.getSceneDatabase();
+        if (db == null) return;
+
+        Set<Long> activeShipIds = new HashSet<>();
+        db.readLock();
+        try {
+            for (EmissiveCache.EmissiveEntry e : db.emissiveCache().all()) {
+                if (e.isOnShip()) activeShipIds.add(e.shipId());
+            }
+        } finally {
+            db.readUnlock();
+        }
+
+        for (long shipId : activeShipIds) {
+            reprojectShipLights(shipId, level, db);
+        }
+    }
+
+    /**
+     * 重新投影某艘飞艇上所有发光光源的世界坐标。
+     * 每次飞艇移动/旋转后调用。
+     */
+    private void reprojectShipLights(long shipId, Level level, SceneDatabase db) {
+        db.writeLock();
+        try {
+            // 收集需要更新的光源
+            var toUpdate = new java.util.ArrayList<EmissiveCache.EmissiveEntry>();
+            for (EmissiveCache.EmissiveEntry e : db.emissiveCache().all()) {
+                if (e.isOnShip() && e.shipId() == shipId) toUpdate.add(e);
+            }
+
+            for (EmissiveCache.EmissiveEntry e : toUpdate) {
+                if (e.blockPos() == null) continue;
+
+                // 用 Sable API 将本地 BlockPos 投影到世界坐标
+                Vec3 worldVec = toWorldPos(level, e.blockPos());
+                Vector3f worldPos = new Vector3f(
+                    (float) worldVec.x,
+                    (float) worldVec.y,
+                    (float) worldVec.z);
+
+                // 移除旧条目，用新世界坐标重新注册
+                db.emissiveCache().remove(e.id());
+                db.emissiveCache().addShipLight(
+                    e.blockPos(), worldPos,
+                    e.color(), e.intensity(), e.radius(), shipId);
+            }
+        } finally {
+            db.writeUnlock();
+        }
+    }
+
+    // ── 飞艇生命周期（供 DirtyEventSystem 调用）──────────────────────────────
+
+    public void onShipCreate(long shipId, Level level, BlockPos originPos) {
+        RTBridgeMod.LOGGER.info("[SableCompat] 飞艇创建: id={}", shipId);
+        knownSubLevels.put(shipId, 0L);
+        dirtyEvents.postShipCreate(shipId);
+
+        // TLAS 占位实例
+        if (tlasManager != null) {
+            Vec3 wPos = toWorldPos(level, originPos);
+            Matrix4f transform = new Matrix4f().translate(
+                (float) wPos.x, (float) wPos.y, (float) wPos.z);
+            var placeholder = new com.rtbridge.vulkan.BLASEntry(-1L);
+            tlasManager.addInstance(shipId, placeholder, transform);
+        }
+    }
+
+    public void onShipDestroy(long shipId) {
+        RTBridgeMod.LOGGER.info("[SableCompat] 飞艇销毁: id={}", shipId);
+        knownSubLevels.remove(shipId);
+        if (tlasManager != null) tlasManager.removeInstance(shipId);
+        dirtyEvents.postShipDestroy(shipId);
+    }
+
+    /**
+     * 飞艇移动/旋转 — 只更新 TLAS Transform，不重建 BLAS。
+     */
+    public void onShipMove(long shipId, Level level, BlockPos newOrigin) {
+        if (tlasManager != null) {
+            Vec3 wPos = toWorldPos(level, newOrigin);
+            Matrix4f transform = new Matrix4f().translate(
+                (float) wPos.x, (float) wPos.y, (float) wPos.z);
+            tlasManager.updateTransform(shipId, transform);
+        }
+        dirtyEvents.postShipMove(shipId);
     }
 }
