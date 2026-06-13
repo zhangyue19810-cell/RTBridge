@@ -9,6 +9,20 @@ loom {
     accessWidenerPath = project(':common').file('src/main/resources/rtbridge.accesswidener')
 }
 
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'RyanHCode'
+                url  = 'https://maven.ryanhcode.dev/releases'
+            }
+        }
+        filter {
+            includeGroup 'dev.ryanhcode.sable-companion'
+        }
+    }
+}
+
 configurations { developmentFabric.extendsFrom implementation }
 
 dependencies {
@@ -18,6 +32,5 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     implementation project(path: ':common', configuration: 'namedElements')
 
-    // Sable Companion — JiJ 进 jar，软依赖 Sable 本体
     include(modApi("dev.ryanhcode.sable-companion:sable-companion-fabric:${project.sable_companion_version}"))
 }
