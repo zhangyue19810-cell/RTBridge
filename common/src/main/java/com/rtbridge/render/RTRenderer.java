@@ -72,9 +72,12 @@ public class RTRenderer {
         // Vulkan 延迟到第一帧初始化，确保 LWJGL 原生库已就绪
     }
 
+    private boolean initAttempted = false;
+
     /** 第一帧渲染时调用，此时 OpenGL/LWJGL 已完全初始化 */
     public void initOnFirstFrame() {
-        if (rtAvailable.get() || vulkanCtx != null) return;
+        if (initAttempted) return;
+        initAttempted = true;
         initVulkan();
     }
 

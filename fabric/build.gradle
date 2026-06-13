@@ -45,12 +45,16 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
 
     shadowCommon(project(path: ':common', configuration: 'transformProductionFabric')) { transitive false }
+
+    // MC 1.21.1 的 LWJGL 缺少 KHR 扩展类，需要 shadow 进来
+    shadowCommon("org.lwjgl:lwjgl-vulkan:3.3.3") { transitive false }
 }
 
 shadowJar {
     exclude 'architectury.common.json'
     configurations = [project.configurations.shadowCommon]
     archiveClassifier = 'dev-shadow'
+    // 不 relocate LWJGL，因为原生库需要原始包名
 }
 
 remapJar {
