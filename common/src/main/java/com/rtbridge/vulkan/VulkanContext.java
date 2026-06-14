@@ -40,7 +40,14 @@ public class VulkanContext implements AutoCloseable {
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
     );
 
+    private String deviceName = "Unknown";
+
     public boolean init() {
+        // 先用 Unsafe 修补 MemoryStack 大小，再走标准 LWJGL 路径
+        VulkanContextRaw raw = new VulkanContextRaw();
+        if (raw.init(this)) return true;
+
+        RTBridgeMod.LOGGER.info("[Vulkan] Raw 修补路径失败，尝试直接标准路径");
         // VkInstance.getInstanceCapabilities 会加载所有扩展，RTX 5070 扩展数量巨大
         // 必须在大栈线程里运行，避免 StackOverflow
         boolean[] result = {false};
@@ -298,6 +305,28 @@ public class VulkanContext implements AutoCloseable {
         vkGetPhysicalDeviceProperties2(physDevice, p2);
         RTBridgeMod.LOGGER.info("[Vulkan] maxRecursion={} handleSize={}",
             rtProps.maxRayRecursionDepth(), rtProps.shaderGroupHandleSize());
+    }
+
+    /** 标准 LWJGL 路径，由 init() 或 VulkanContextRaw 调用 */
+    public boolean initInternal() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            if (!tryGetIrisInstance()) {
+                if (!createInstance(stack)) return false;
+                ownsInstance = true;
+            }
+            if (!pickPhysDevice(stack))   return false;
+            if (!createDevice(stack))     return false;
+            queryRTProps(stack);
+            deviceName = getDeviceName();
+            RTBridgeMod.LOGGER.info("[Vulkan] 就绪 — {} API={}.{}",
+                deviceName,
+                VK_VERSION_MAJOR(getApiVersion()),
+                VK_VERSION_MINOR(getApiVersion()));
+            return true;
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[Vulkan] initInternal 失败: {}", e.getMessage());
+            return false;
+        }
     }
 
     @Override
