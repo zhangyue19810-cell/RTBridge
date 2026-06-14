@@ -47,6 +47,11 @@ public class VulkanContext implements AutoCloseable {
         Throwable[] err  = {null};
 
         Thread t = new Thread(null, () -> {
+            // 默认 MemoryStack 只有 64KB，RTX 5070 扩展数量极多会溢出
+            // 手动设置 4MB MemoryStack
+            org.lwjgl.system.MemoryStack largeStack =
+                org.lwjgl.system.MemoryStack.create(4 * 1024 * 1024);
+            org.lwjgl.system.MemoryStack.setThreadLocalStack(largeStack);
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 if (!tryGetIrisInstance()) {
                     if (!createInstance(stack)) return;
