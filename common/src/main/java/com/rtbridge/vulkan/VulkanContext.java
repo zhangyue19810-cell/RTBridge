@@ -46,12 +46,13 @@ public class VulkanContext implements AutoCloseable {
         boolean[] result = {false};
         Throwable[] err  = {null};
 
+        // LWJGL MemoryStack 默认 64KB，RTX 5070 Vulkan 扩展数量极多会溢出
+        // 在线程初始化前设置 4MB MemoryStack
+        int prevStackSize = org.lwjgl.system.Configuration.STACK_SIZE.get(64);
+        org.lwjgl.system.Configuration.STACK_SIZE.set(4096); // 4MB
+
         Thread t = new Thread(null, () -> {
-            // 默认 MemoryStack 只有 64KB，RTX 5070 扩展数量极多会溢出
-            // 手动设置 4MB MemoryStack
-            org.lwjgl.system.MemoryStack largeStack =
-                org.lwjgl.system.MemoryStack.create(4 * 1024 * 1024);
-            org.lwjgl.system.MemoryStack.setThreadLocalStack(largeStack);
+            // 此线程第一次访问 MemoryStack 时会用 4MB
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 if (!tryGetIrisInstance()) {
                     if (!createInstance(stack)) return;
@@ -76,10 +77,22 @@ public class VulkanContext implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
+        } finally {
+            // 恢复原始 MemoryStack 大小
+            org.lwjgl.system.Configuration.STACK_SIZE.set(prevStackSize);
         }
 
         if (err[0] != null) {
-            RTBridgeMod.LOGGER.error("[Vulkan] 初始化失败: {}", err[0].getMessage());
+            String msg = err[0].getMessage();
+            if (msg != null && msg.contains("Out of stack space")) {
+                RTBridgeMod.LOGGER.error("[Vulkan] MemoryStack 空间不足（NVIDIA 驱动已知问题）");
+                RTBridgeMod.LOGGER.error("[Vulkan] ====================================================");
+                RTBridgeMod.LOGGER.error("[Vulkan] 修复方法：在启动器 JVM 参数中添加：");
+                RTBridgeMod.LOGGER.error("[Vulkan]   -Dorg.lwjgl.system.stackSize=256");
+                RTBridgeMod.LOGGER.error("[Vulkan] ====================================================");
+            } else {
+                RTBridgeMod.LOGGER.error("[Vulkan] 初始化失败: {}", msg);
+            }
         }
         return result[0];
     }

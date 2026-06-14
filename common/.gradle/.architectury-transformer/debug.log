@@ -4,15 +4,15 @@
 [Architectury Transformer DEBUG] ============================
 [Architectury Transformer DEBUG] 
 [Architectury Transformer DEBUG] Transforming 5 transformer(s) from /data/data/com.termux/files/home/RTBridge/common/build/devlibs/common-dev.jar to /data/data/com.termux/files/home/RTBridge/common/build/libs/common-transformProductionFabric.jar: 
-[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.RemapMixinVariables@fcbf281
-[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.TransformExpectPlatform@1cd33f3
-[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.RemapInjectables@4472a36f
+[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.RemapMixinVariables@48309606
+[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.TransformExpectPlatform@239c729f
+[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.RemapInjectables@4d2a6985
 [Architectury Transformer DEBUG]  - AddRefmapName(enabled=() -> kotlin.Boolean)
-[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.TransformPlatformOnly@114f331
+[Architectury Transformer DEBUG]  - dev.architectury.transformer.transformers.TransformPlatformOnly@2b9c3b0a
 [Architectury Transformer DEBUG] Transforming from /data/data/com.termux/files/home/RTBridge/common/build/devlibs/common-dev.jar to /data/data/com.termux/files/home/RTBridge/common/build/libs/common-transformProductionFabric.jar with 5 transformer(s) on dev.architectury.transformer.handler.SimpleTransformerHandler
 [Architectury Transformer DEBUG] Reading mixin mappings file: /data/data/com.termux/files/home/RTBridge/common/build/loom-cache/mixin-map-net.fabricmc.yarn.1_21_1.1.21.1+build.3-v2.main.tiny
 [Architectury Transformer DEBUG] Remapping with 1 mapping provider(s):
-[Architectury Transformer DEBUG]  - dev.architectury.transformer.shadowed.impl.dev.architectury.tinyremapper.TinyUtils$$Lambda/0x0000000100e64000@4ac0352c
+[Architectury Transformer DEBUG]  - dev.architectury.transformer.shadowed.impl.dev.architectury.tinyremapper.TinyUtils$$Lambda/0x0000000100cc6b70@63fd3f9b
 [Architectury Transformer DEBUG] Provided 61 classpath jar(s):
 [Architectury Transformer DEBUG]  - /data/data/com.termux/files/home/.gradle/caches/modules-2/files-2.1/dev.architectury/architectury-injectables/1.0.10/62db2a366d662606d1b23ad02ccc3212ed37ec3/architectury-injectables-1.0.10.jar
 [Architectury Transformer DEBUG]  - /data/data/com.termux/files/home/.gradle/caches/modules-2/files-2.1/net.fabricmc/fabric-loader/0.19.3/354dfaa02d0552e11867f85dff7cdbfaf813ba3e/fabric-loader-0.19.3.jar
@@ -75,15 +75,15 @@
 [Architectury Transformer DEBUG]  - /data/data/com.termux/files/home/.gradle/caches/modules-2/files-2.1/org.lz4/lz4-java/1.8.0/4b986a99445e49ea5fbf5d149c4b63f6ed6c6780/lz4-java-1.8.0.jar
 [Architectury Transformer DEBUG]  - /data/data/com.termux/files/home/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.0.9/7cf2726fdcfbc8610f9a71fb3ed639871f315340/slf4j-api-2.0.9.jar
 [Architectury Transformer DEBUG]  - /data/data/com.termux/files/home/RTBridge/.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-3cd55d26b7/1.21.1-net.fabricmc.yarn.1_21_1.1.21.1+build.3-v2/minecraft-merged-3cd55d26b7-1.21.1-net.fabricmc.yarn.1_21_1.1.21.1+build.3-v2.jar
-[Architectury Transformer] Read classpath in 2.071 s
+[Architectury Transformer] Read classpath in 2.187 s
 [Architectury Transformer DEBUG] Remapping Classes:
 [Architectury Transformer DEBUG] Found class transformer
 [Architectury Transformer DEBUG] Writing com/rtbridge/RTBridgeMod with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/mixin/MixinGameRenderer with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/mixin/MixinWorldRenderer with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/mixin/MixinLevelChunk with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/light/LightCluster with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/mixin/MixinGameRenderer with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/light/ReservoirSampler$Reservoir with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/light/LightCluster with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/light/ReservoirSampler with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/VulkanBuffer with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/ShaderBindingTable with maxs=true frames=true
@@ -93,23 +93,23 @@
 [Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/RTImageSet with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/CameraUBO with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/VulkanProbe$ProbeResult with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/VulkanProbe with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/RTPipeline with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/DescriptorPool with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/vulkan/VulkanProbe with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/bvh/TLASManager with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/bvh/AsyncBLASBuilder with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/bvh/TLASInstanceBuffer with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/bvh/AsyncBLASBuilder with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/bvh/AsyncBLASBuilder$BLASReadyCallback with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/bvh/TLASManager$InstanceData with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/bvh/TLASInstanceBuffer$TLASInstance with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/bvh/AsyncBLASBuilder$BLASTask with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/bvh/TLASManager$InstanceData with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/compat/ValkyrienSkiesCompat with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/compat/SableCompat with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/compat/SodiumCompat with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/compat/IrisCompat with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/render/ShadowPass with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/render/MotionVectorBuffer with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/render/GBuffer with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/render/MotionVectorBuffer with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/render/CompositePass with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/render/RTRenderer with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/buffer/TripleBuffer with maxs=true frames=true
@@ -118,14 +118,14 @@
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/SceneExtractor$1 with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/StaticGeometryCache with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/EmissiveCache$EmissiveEntry with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/EmissiveCache with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/StaticGeometryCache$ChunkMeshEntry with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/DynamicGeometryCache with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/StaticGeometryCache$ChunkMeshEntry with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/DynamicGeometryCache$DynamicMeshEntry with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/TransformCache$ShipTransform with maxs=true frames=true
-[Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/MaterialCache$MaterialEntry with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/MaterialCache with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/MaterialCache$MaterialEntry with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/TransformCache with maxs=true frames=true
+[Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/EmissiveCache with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/scene/cache/DynamicGeometryCache$DynamicType with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/event/DirtyEventSystem with maxs=true frames=true
 [Architectury Transformer DEBUG] Writing com/rtbridge/event/DirtyEvent with maxs=true frames=true
@@ -134,4 +134,4 @@
 [Architectury Transformer DEBUG] Writing com/rtbridge/event/DirtyEventListener with maxs=true frames=true
 [Architectury Transformer DEBUG] Checking whether /common-common-refmap.json is a mixin config.
 [Architectury Transformer DEBUG] Closed File Systems for /data/data/com.termux/files/home/RTBridge/common/build/libs/common-transformProductionFabric.jar
-[Architectury Transformer] Transformed jar with 5 transformer(s) in 2.758 s
+[Architectury Transformer] Transformed jar with 5 transformer(s) in 3.307 s
