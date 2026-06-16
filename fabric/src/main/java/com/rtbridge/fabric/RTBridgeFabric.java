@@ -15,6 +15,8 @@ public class RTBridgeFabric implements ClientModInitializer {
         WorldRenderEvents.END.register(ctx -> {
             // 第一帧：初始化 Vulkan（此时 LWJGL 已就绪）
             RTBridgeMod.getRTRenderer().initOnFirstFrame();
+            // GL 线程：初始化 GL-Vulkan 共享图像
+            RTBridgeMod.getRTRenderer().initExternalImagesOnGLThread();
             RTBridgeMod.getTripleBuffer().advanceFrame();
             RTBridgeMod.getRTRenderer().submitFrame(
                 RTBridgeMod.getTripleBuffer().getMiddle());
@@ -25,7 +27,15 @@ public class RTBridgeFabric implements ClientModInitializer {
             var gb = RTBridgeMod.getGBufferCapture();
             if (gb != null) {
                 var win = net.minecraft.client.MinecraftClient.getInstance().getWindow();
-                gb.init(win.getFramebufferWidth(), win.getFramebufferHeight());
+                if (!gb.isReady()
+    || gb.getDepthTexId() < 0
+    || gb.getNormalTexId() < 0) {
+
+    gb.init(
+        win.getFramebufferWidth(),
+        win.getFramebufferHeight()
+    );
+}
                 // 从 MC 默认帧缓冲读取深度纹理
                 // MC Sodium/Iris 的深度纹理通过 Mixin 注入
                 gb.captureFromDepth(-1, -1, 0.05f, 512f,

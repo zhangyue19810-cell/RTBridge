@@ -70,13 +70,28 @@ public class RTRenderer {
         // Vulkan 延迟到第一帧初始化，确保 LWJGL 原生库已就绪
     }
 
-    private boolean initAttempted = false;
+    private boolean initAttempted   = false;
+    private boolean externalInited  = false;
 
     /** 第一帧渲染时调用，此时 OpenGL/LWJGL 已完全初始化 */
     public void initOnFirstFrame() {
         if (initAttempted) return;
         initAttempted = true;
         initVulkan();
+    }
+
+    /** GL 线程调用：初始化 GL-Vulkan 共享图像 */
+    public void initExternalImagesOnGLThread() {
+        if (externalInited || rtImages == null || !rtAvailable.get()) return;
+        externalInited = true;
+        rtImages.initExternalImages();
+        // 用真实 GL 纹理 ID 更新 buffer ID
+        if (rtImages.externalReady) {
+            shadowBufferId     = rtImages.getShadowGLTex();
+            reflectionBufferId = rtImages.getReflectionGLTex();
+            gIBufferId         = rtImages.getGIGLTex();
+            RTBridgeMod.LOGGER.info("[RTRenderer] GL-Vulkan 共享图像接入完成");
+        }
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────

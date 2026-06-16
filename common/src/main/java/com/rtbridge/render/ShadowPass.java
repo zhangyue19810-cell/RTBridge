@@ -80,27 +80,16 @@ public class ShadowPass implements AutoCloseable {
             // 5. Descriptor pool + set
             descPool.init(1);
 
-            // 尝试使用真实 GBuffer 纹理
-            // 如果 GBufferCapture 未就绪，继续用占位图
-            int depthTex  = com.rtbridge.RTBridgeMod.getGBufferCapture() != null
-                && com.rtbridge.RTBridgeMod.getGBufferCapture().isReady()
-                ? com.rtbridge.RTBridgeMod.getGBufferCapture().getDepthTexId()
-                : -1;
-            int normalTex = com.rtbridge.RTBridgeMod.getGBufferCapture() != null
-                && com.rtbridge.RTBridgeMod.getGBufferCapture().isReady()
-                ? com.rtbridge.RTBridgeMod.getGBufferCapture().getNormalTexId()
-                : -1;
-
-            // 如果没有真实纹理，用占位图
-            long depthView  = depthTex  >= 0 ? depthTex  : placeholderView;
-            long normalView = normalTex >= 0 ? normalTex : placeholderView;
-
+            // GL 纹理 ID 不能直接传给 Vulkan！
+            // GL-Vulkan interop 需要 VK_KHR_external_memory，尚未实现。
+            // 暂时用占位 VkImageView（1×1 白色），RT 结果有 shadow 形状但无精确遮挡。
+            // TODO: 实现 GLVulkanBridge 后替换为真实 VkImageView。
             descriptorSet = descPool.allocateAndWrite(
                 pipeline.descriptorSetLayout,
                 tlas.getTLASHandle(),
                 images.shadowView,
-                depthView,
-                normalView,
+                placeholderView, // depth  — 待 GL-Vulkan interop 实现后替换
+                placeholderView, // normal — 待 GL-Vulkan interop 实现后替换
                 sampler,
                 cameraUBO.bufferHandle()
             );

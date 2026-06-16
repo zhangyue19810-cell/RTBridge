@@ -126,9 +126,19 @@ public class CompositePass {
         if (!initialised) { init(); return; }
         if (failed) return;
 
-        float rtWeight = (shadowTexId >= 0 || reflectionTexId >= 0 || giTexId >= 0)
-            ? 1.0f : 0.0f;
-        if (rtWeight == 0f) return;
+        // 验证所有纹理 ID 是合法的 GL 纹理
+        boolean hasShadow     = shadowTexId     >= 0 && glIsTexture(shadowTexId);
+        boolean hasReflection = reflectionTexId >= 0 && glIsTexture(reflectionTexId);
+        boolean hasGI         = giTexId         >= 0 && glIsTexture(giTexId);
+        boolean hasBase       = baseColorTexId  >= 0 && glIsTexture(baseColorTexId);
+
+        float rtWeight = (hasShadow || hasReflection || hasGI) ? 1.0f : 0.0f;
+        if (rtWeight == 0f || !hasBase) return;
+
+        // 用验证过的 ID 或 fallback
+        int useShadow     = hasShadow     ? shadowTexId     : whiteTexId;
+        int useReflection = hasReflection ? reflectionTexId : blackTexId;
+        int useGI         = hasGI         ? giTexId         : blackTexId;
 
         // Save GL state
         boolean depthTest = glIsEnabled(GL_DEPTH_TEST);
@@ -140,16 +150,16 @@ public class CompositePass {
 
         // Bind textures
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, baseColorTexId >= 0 ? baseColorTexId : blackTexId);
+        glBindTexture(GL_TEXTURE_2D, hasBase ? baseColorTexId : blackTexId);
 
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, shadowTexId     >= 0 ? shadowTexId     : whiteTexId);
+        glBindTexture(GL_TEXTURE_2D, useShadow);
 
         glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, reflectionTexId >= 0 ? reflectionTexId : blackTexId);
+        glBindTexture(GL_TEXTURE_2D, useReflection);
 
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, giTexId         >= 0 ? giTexId         : blackTexId);
+        glBindTexture(GL_TEXTURE_2D, useGI);
 
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, normalTexId); // GBuffer normal (TODO: real)

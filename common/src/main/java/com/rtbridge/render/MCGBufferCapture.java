@@ -42,18 +42,27 @@ public class MCGBufferCapture {
     // ── 初始化 ───────────────────────────────────────────────────────────────
 
     public void init(int width, int height) {
-        this.width  = width;
-        this.height = height;
-        cleanup();
-        createTextures();
-        ready = true;
-        RTBridgeMod.LOGGER.info("[GBufferCapture] 初始化 {}x{}", width, height);
+
+    if (ready &&
+        this.width == width &&
+        this.height == height) {
+        return;
     }
 
-    public void resize(int w, int h) {
-        if (w == width && h == height) return;
-        init(w, h);
-    }
+    this.width = width;
+    this.height = height;
+
+    cleanup();
+    createTextures();
+
+    ready = true;
+
+    RTBridgeMod.LOGGER.info(
+        "[GBufferCapture] 初始化 {}x{}",
+        width,
+        height
+    );
+}
 
     private void createTextures() {
         // 法线纹理 RGB16F
