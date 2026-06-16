@@ -52,13 +52,11 @@ public class RTRenderer {
     private final LightCluster       lightCluster = new LightCluster();
     private final ReservoirSampler   reservoirSampler = new ReservoirSampler(lightCluster);
 
-    /** Dedicated RT thread — all Vulkan RT calls happen here. */
-    private final ExecutorService rtThread =
-        Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "RTBridge-RTRenderer");
-            t.setDaemon(true);
-            return t;
-        });
+    /** 异步 RT 调度器 — 1帧延迟，GL 线程不阻塞 */
+    private AsyncRTScheduler asyncScheduler;
+
+    /** GPU 显存场景缓存 */
+    private com.rtbridge.vulkan.cache.GPUSceneCache gpuCache;
 
     /** Snapshot of the scene passed from the main thread each frame. */
     private final AtomicReference<SceneDatabase> pendingScene = new AtomicReference<>();
@@ -102,6 +100,21 @@ public class RTRenderer {
             rtAvailable.set(vulkanSupported);
             if (vulkanSupported) {
                 RTBridgeMod.LOGGER.info("[RTRenderer] Vulkan RT 初始化完成");
+
+                // 启动异步调度器
+                asyncScheduler = new AsyncRTScheduler(frame -> {
+                    dispatchShadowPass(frame.scene, frame.frameIndex);
+                    dispatchReflectionPass(frame.scene, frame.frameIndex);
+                    dispatchGIPass(frame.scene, frame.frameIndex);
+                    // GLVulkanBridge 的纹理 ID（已在 init 时设置）
+                    frame.shadowTexId     = shadowBufferId;
+                    frame.reflectionTexId = reflectionBufferId;
+                    frame.giTexId         = gIBufferId;
+                });
+                asyncScheduler.start();
+
+                // 初始化 GPU 场景缓存（1.5GB）
+                gpuCache = new com.rtbridge.vulkan.cache.GPUSceneCache(vulkanCtx);
                 allocateOutputBuffers();
             } else {
                 RTBridgeMod.LOGGER.warn("[RTRenderer] 当前 GPU 不支持 RT，RT 已禁用");
@@ -140,11 +153,8 @@ public class RTRenderer {
      * Hands off the current Middle scene snapshot to the RT thread.
      */
     public void submitFrame(SceneDatabase middleScene) {
-        if (!rtAvailable.get()) return;
-
-        resultReady.set(false);
-        pendingScene.set(middleScene);
-        rtThread.submit(this::renderRT);
+        if (!rtAvailable.get() || asyncScheduler == null) return;
+        asyncScheduler.submitFrame(middleScene);
     }
 
     // ── RT frame (runs on rtThread) ───────────────────────────────────────────
@@ -228,6 +238,7 @@ public class RTRenderer {
      * Output: shadowBufferId (R8 or R16F texture)
      */
     private ShadowPass shadowPass;
+    private com.rtbridge.vulkan.GLVulkanBridge glBridge;
     private com.rtbridge.vulkan.RTImageSet rtImages;
     private int renderWidth = 1920, renderHeight = 1080; // 默认分辨率
 
@@ -288,18 +299,34 @@ public class RTRenderer {
     // ── Accessors ─────────────────────────────────────────────────────────────
 
     public boolean isAvailable()  { return rtAvailable.get(); }
-    public boolean hasResult()    { return resultReady.get(); }
+    public boolean hasResult() {
+        if (asyncScheduler != null) return asyncScheduler.hasResult();
+        return resultReady.get();
+    }
 
-    public int getShadowBuffer()     { return shadowBufferId; }
-    public int getReflectionBuffer() { return reflectionBufferId; }
-    public int getGIBuffer()         { return gIBufferId; }
+    public int getShadowBuffer() {
+        if (asyncScheduler != null && asyncScheduler.hasResult())
+            return asyncScheduler.getLastReadyFrame().shadowTexId;
+        return shadowBufferId;
+    }
+    public int getReflectionBuffer() {
+        if (asyncScheduler != null && asyncScheduler.hasResult())
+            return asyncScheduler.getLastReadyFrame().reflectionTexId;
+        return reflectionBufferId;
+    }
+    public int getGIBuffer() {
+        if (asyncScheduler != null && asyncScheduler.hasResult())
+            return asyncScheduler.getLastReadyFrame().giTexId;
+        return gIBufferId;
+    }
 
     public TLASInstanceBuffer getTLASBuffer()   { return tlasBuffer; }
     public com.rtbridge.bvh.TLASManager getTLASManager() { return tlasManager; }
     public AsyncBLASBuilder   getBLASBuilder()  { return blasBuilder; }
 
     public void shutdown() {
-        rtThread.shutdown();
-        blasBuilder.shutdown();
+        if (asyncScheduler != null) asyncScheduler.stop();
+        if (gpuCache        != null) gpuCache.close();
+        if (blasBuilder     != null) blasBuilder.shutdown();
     }
 }

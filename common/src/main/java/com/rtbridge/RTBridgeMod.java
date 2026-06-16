@@ -26,6 +26,8 @@ public class RTBridgeMod {
     private static RTRenderer       rtRenderer;
     private static CompositePass    compositePass;
     private static SableCompat      sableCompat;
+    private static com.rtbridge.render.MCGBufferCapture gBufferCapture;
+    private static com.rtbridge.render.FrameCapture frameCapture;
 
     public static void init() {
         LOGGER.info("[RTBridge] 核心初始化");
@@ -45,6 +47,10 @@ public class RTBridgeMod {
         rtRenderer   = new RTRenderer(blasBuilder);
         compositePass = new CompositePass();
 
+        // GBuffer 捕获器（GL 线程初始化）
+        gBufferCapture = new com.rtbridge.render.MCGBufferCapture();
+        frameCapture   = new com.rtbridge.render.FrameCapture();
+
         if (SableCompat.isLoaded()) {
             sableCompat = new SableCompat(dirtyEventSystem,
                 rtRenderer.isAvailable() ? rtRenderer.getTLASManager() : null);
@@ -57,6 +63,8 @@ public class RTBridgeMod {
     public static DirtyEventSystem getDirtyEventSystem() { return dirtyEventSystem; }
     public static SceneDatabase    getSceneDatabase()    { return sceneDatabase; }
     public static RTRenderer       getRTRenderer()       { return rtRenderer; }
+    public static com.rtbridge.render.MCGBufferCapture getGBufferCapture() { return gBufferCapture; }
+    public static com.rtbridge.render.FrameCapture          getFrameCapture()   { return frameCapture; }
     public static TripleBuffer     getTripleBuffer()     { return tripleBuffer; }
     public static CompositePass    getCompositePass()    { return compositePass; }
     public static SceneExtractor   getSceneExtractor()   { return sceneExtractor; }

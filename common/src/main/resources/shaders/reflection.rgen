@@ -1,6 +1,8 @@
 #version 460
-#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_ray_tracing          : require
+#extension GL_EXT_nonuniform_qualifier : enable
 
+// ── 输出 ──────────────────────────────────────────────────────────────────────
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 1, set = 0, rgba16f) uniform image2D reflectionImage;
 layout(binding = 2, set = 0) uniform sampler2D gDepth;
@@ -10,43 +12,204 @@ layout(binding = 4, set = 0) uniform CameraUBO {
     mat4 invView;
     mat4 invProj;
     vec4 lightDir;
+    vec4 cameraPos;
+    float time;
+    float nearPlane;
+    float farPlane;
+    float pad;
 } cam;
 
-layout(location = 0) rayPayloadEXT vec3 hitColor;
+// 材质 GBuffer（roughness/metalness）
+layout(binding = 5, set = 0) uniform sampler2D gMaterial; // R=roughness G=metalness B=flags
 
-void main() {
-    const vec2 uv = (vec2(gl_LaunchIDEXT.xy) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
+layout(location = 0) rayPayloadEXT vec4 hitResult; // rgb=color, a=hitDist(-1=miss)
 
-    float depth = texture(gDepth, uv).r;
-    if (depth >= 1.0) {
-        imageStore(reflectionImage, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 1.0));
-        return;
-    }
+// ── 常量 ──────────────────────────────────────────────────────────────────────
+const float PI  = 3.14159265;
+const float TAU = 6.28318530;
 
-    // Reconstruct world pos
+// 水面折射率（空气→水）
+const float IOR_WATER = 1.333;
+
+// ── 工具函数 ──────────────────────────────────────────────────────────────────
+
+// PCG 随机数
+uint pcg(uint v) {
+    uint s = v * 747796405u + 2891336453u;
+    uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    return (w >> 22u) ^ w;
+}
+float rand(inout uint seed) {
+    seed = pcg(seed);
+    return float(seed) * (1.0 / float(0xFFFFFFFFu));
+}
+
+// 切线空间构建
+mat3 buildTBN(vec3 N) {
+    vec3 up = abs(N.y) < 0.999 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+    vec3 T  = normalize(cross(up, N));
+    vec3 B  = cross(N, T);
+    return mat3(T, B, N);
+}
+
+// GGX VNDF 采样（参考 iterationRP 的 GGXVNDF）
+// 给定视线方向 V、法线 N、粗糙度 alpha、随机数 u
+vec3 sampleGGXVNDF(vec3 V, vec3 N, float alpha, vec2 u) {
+    mat3 tbn = buildTBN(N);
+    vec3 Vt = transpose(tbn) * (-V); // 变换到切线空间
+
+    // Stretch
+    vec3 Vh = normalize(vec3(alpha * Vt.x, alpha * Vt.y, Vt.z));
+
+    // Orthonormal basis
+    vec3 T1 = (abs(Vh.z) < 0.999) ? normalize(cross(Vh, vec3(0,0,1))) : vec3(1,0,0);
+    vec3 T2 = cross(Vh, T1);
+
+    float r = sqrt(u.x);
+    float phi = TAU * u.y;
+    float t1 = r * cos(phi);
+    float t2 = r * sin(phi);
+    float s  = 0.5 * (1.0 + Vh.z);
+    t2 = mix(sqrt(max(0.0, 1.0 - t1*t1)), t2, s);
+
+    vec3 Nh = t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - t1*t1 - t2*t2)) * Vh;
+
+    // Unstretch
+    vec3 H = normalize(vec3(alpha * Nh.x, alpha * Nh.y, max(0.0, Nh.z)));
+    H = tbn * H; // 变换回世界空间
+
+    return reflect(V, H);
+}
+
+// Schlick Fresnel
+float fresnelSchlick(float cosTheta, float F0) {
+    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
+// 动态水面法线（时间驱动的波浪）
+vec3 waterNormal(vec3 worldPos, float time) {
+    vec2 uv  = worldPos.xz * 0.15;
+    float n1 = sin(uv.x * 2.0 + time * 0.8) * cos(uv.y * 1.7 + time * 0.6);
+    float n2 = sin(uv.x * 3.1 - time * 1.1) * cos(uv.y * 2.9 - time * 0.9);
+    float n3 = sin((uv.x + uv.y) * 1.8 + time * 0.5);
+    vec2 slope = vec2(n1 * 0.12 + n2 * 0.08 + n3 * 0.05,
+                      n2 * 0.12 + n3 * 0.08 + n1 * 0.05);
+    return normalize(vec3(slope.x, 1.0, slope.y));
+}
+
+// 深度→世界坐标
+vec3 reconstructWorldPos(vec2 uv, float depth) {
     vec4 ndc     = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     vec4 viewPos = cam.invProj * ndc;
     viewPos     /= viewPos.w;
-    vec3 worldPos = (cam.invView * viewPos).xyz;
+    return (cam.invView * viewPos).xyz;
+}
 
-    vec3 N = normalize(texture(gNormal, uv).xyz * 2.0 - 1.0);
+// ── Main ──────────────────────────────────────────────────────────────────────
+void main() {
+    ivec2 pixel = ivec2(gl_LaunchIDEXT.xy);
+    vec2  uv    = (vec2(pixel) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
 
-    // Camera position = invView[3]
-    vec3 camPos  = cam.invView[3].xyz;
-    vec3 viewDir = normalize(worldPos - camPos);
+    // 读 GBuffer
+    float depth    = texture(gDepth,    uv).r;
+    vec3  normalRaw= texture(gNormal,   uv).rgb * 2.0 - 1.0;
+    vec4  matProps = texture(gMaterial, uv);
+    float roughness= matProps.r;
+    float metalness= matProps.g;
+    float flags    = matProps.b; // bit0=water, bit1=glass
 
-    // Reflect view ray around normal
-    vec3 reflDir = reflect(viewDir, N);
+    bool isWater = flags > 0.4 && flags < 0.6;
+    bool isGlass = flags > 0.9;
 
-    hitColor = vec3(0.0);
+    // 跳过天空
+    if (depth >= 0.9999) {
+        imageStore(reflectionImage, pixel, vec4(0.0));
+        return;
+    }
+
+    vec3 worldPos = reconstructWorldPos(uv, depth);
+    vec3 N        = normalize(normalRaw);
+    vec3 camPos   = cam.cameraPos.xyz;
+    vec3 V        = normalize(worldPos - camPos); // 视线方向（朝向表面）
+
+    // 水面：用动态法线替换
+    if (isWater) {
+        N = waterNormal(worldPos, cam.time);
+        // 确保法线朝上（水面背面不处理）
+        if (dot(N, -V) < 0.0) N = -N;
+    }
+
+    // 每像素随机种子
+    uint seed = pcg(uint(pixel.x) + uint(pixel.y) * uint(gl_LaunchSizeEXT.x)
+                  + uint(cam.time * 1000.0) * 11u);
+
+    vec2 u = vec2(rand(seed), rand(seed));
+
+    // ── 反射方向 ────────────────────────────────────────────────────────────
+
+    vec3 reflDir;
+    float F0 = mix(0.04, 0.9, metalness);
+
+    if (isWater || roughness < 0.01) {
+        // 完全镜面反射
+        reflDir = reflect(V, N);
+    } else {
+        // GGX VNDF 重要性采样（粗糙表面）
+        float alpha = roughness * roughness;
+        reflDir = sampleGGXVNDF(V, N, alpha, u);
+        // 避免反射到表面内部
+        if (dot(reflDir, N) < 0.0) reflDir = reflect(V, N);
+    }
+
+    // Fresnel
+    float NdotV  = max(dot(-V, N), 0.0);
+    float F      = fresnelSchlick(NdotV, F0);
+
+    // 极低 Fresnel = 不值得追踪
+    if (F < 0.01) {
+        imageStore(reflectionImage, pixel, vec4(0.0));
+        return;
+    }
+
+    // ── 折射（水面/玻璃）────────────────────────────────────────────────────
+
+    vec4 refractionColor = vec4(0.0);
+    bool hasRefraction = (isWater || isGlass) && NdotV > 0.0;
+
+    if (hasRefraction) {
+        float ior = isWater ? IOR_WATER : 1.5;
+        vec3 refrDir = refract(V, N, 1.0 / ior);
+        if (length(refrDir) > 0.0) {
+            hitResult = vec4(0.0, 0.0, 0.2, -1.0); // 水下默认蓝色
+            traceRayEXT(topLevelAS,
+                gl_RayFlagsOpaqueEXT,
+                0xFF, 1, 0, 1, // hit group 1 = refraction
+                worldPos - N * 0.01, 0.001,
+                refrDir, 200.0, 0);
+            refractionColor = hitResult;
+        }
+    }
+
+    // ── 反射光线 ─────────────────────────────────────────────────────────────
+
+    hitResult = vec4(0.0, 0.0, 0.0, -1.0);
     traceRayEXT(topLevelAS,
         gl_RayFlagsOpaqueEXT,
         0xFF, 0, 0, 0,
-        worldPos + N * 0.005,   // origin with bias
-        0.001,
-        reflDir,
-        1000.0,
-        0);
+        worldPos + N * 0.005, 0.001,
+        reflDir, 1000.0, 0);
 
-    imageStore(reflectionImage, ivec2(gl_LaunchIDEXT.xy), vec4(hitColor, 1.0));
+    vec3 reflColor = hitResult.rgb;
+
+    // ── 混合反射 + 折射 ───────────────────────────────────────────────────────
+
+    vec4 finalColor;
+    if (hasRefraction) {
+        // 菲涅耳混合：F=反射占比，(1-F)=折射占比
+        finalColor = vec4(mix(refractionColor.rgb, reflColor, F), 1.0);
+    } else {
+        finalColor = vec4(reflColor * F, F);
+    }
+
+    imageStore(reflectionImage, pixel, finalColor);
 }

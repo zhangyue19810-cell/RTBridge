@@ -122,7 +122,7 @@ public class CompositePass {
      * @param reflectionTexId GL tex id, -1 = no reflection
      * @param giTexId         GL tex id, -1 = no GI
      */
-    public void composite(int shadowTexId, int reflectionTexId, int giTexId) {
+    public void composite(int baseColorTexId, int shadowTexId, int reflectionTexId, int giTexId) {
         if (!initialised) { init(); return; }
         if (failed) return;
 
@@ -139,9 +139,8 @@ public class CompositePass {
         glUniform1f(uRTWeight, rtWeight);
 
         // Bind textures
-        // slot 0: base color is the current framebuffer → read via sampler
-        // (caller must have blitted to a texture before calling composite)
-        glActiveTexture(GL_TEXTURE0); // base color (caller responsibility)
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, baseColorTexId >= 0 ? baseColorTexId : blackTexId);
 
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, shadowTexId     >= 0 ? shadowTexId     : whiteTexId);

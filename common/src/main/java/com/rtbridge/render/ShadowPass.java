@@ -79,12 +79,28 @@ public class ShadowPass implements AutoCloseable {
 
             // 5. Descriptor pool + set
             descPool.init(1);
+
+            // 尝试使用真实 GBuffer 纹理
+            // 如果 GBufferCapture 未就绪，继续用占位图
+            int depthTex  = com.rtbridge.RTBridgeMod.getGBufferCapture() != null
+                && com.rtbridge.RTBridgeMod.getGBufferCapture().isReady()
+                ? com.rtbridge.RTBridgeMod.getGBufferCapture().getDepthTexId()
+                : -1;
+            int normalTex = com.rtbridge.RTBridgeMod.getGBufferCapture() != null
+                && com.rtbridge.RTBridgeMod.getGBufferCapture().isReady()
+                ? com.rtbridge.RTBridgeMod.getGBufferCapture().getNormalTexId()
+                : -1;
+
+            // 如果没有真实纹理，用占位图
+            long depthView  = depthTex  >= 0 ? depthTex  : placeholderView;
+            long normalView = normalTex >= 0 ? normalTex : placeholderView;
+
             descriptorSet = descPool.allocateAndWrite(
                 pipeline.descriptorSetLayout,
                 tlas.getTLASHandle(),
                 images.shadowView,
-                placeholderView, // depth
-                placeholderView, // normal
+                depthView,
+                normalView,
                 sampler,
                 cameraUBO.bufferHandle()
             );
