@@ -85,12 +85,15 @@ public class RTRenderer {
         if (externalInited || rtImages == null || !rtAvailable.get()) return;
         externalInited = true;
         rtImages.initExternalImages();
-        // 用真实 GL 纹理 ID 更新 buffer ID
         if (rtImages.externalReady) {
             shadowBufferId     = rtImages.getShadowGLTex();
             reflectionBufferId = rtImages.getReflectionGLTex();
             gIBufferId         = rtImages.getGIGLTex();
             RTBridgeMod.LOGGER.info("[RTRenderer] GL-Vulkan 共享图像接入完成");
+        } else {
+            // Win32 zero-copy 失败，创建普通 GL 纹理用于 CPU 回读上传
+            shadowBufferId = createPlainGLTexture(renderWidth, renderHeight);
+            RTBridgeMod.LOGGER.info("[RTRenderer] 使用 CPU 回读模式，普通 GL 纹理={}", shadowBufferId);
         }
     }
 
@@ -121,10 +124,30 @@ public class RTRenderer {
                     dispatchShadowPass(frame.scene, frame.frameIndex);
                     dispatchReflectionPass(frame.scene, frame.frameIndex);
                     dispatchGIPass(frame.scene, frame.frameIndex);
-                    // GLVulkanBridge 的纹理 ID（已在 init 时设置）
                     frame.shadowTexId     = shadowBufferId;
                     frame.reflectionTexId = reflectionBufferId;
                     frame.giTexId         = gIBufferId;
+
+                    // CPU 回读：拷贝 staging buffer 数据，供 GL 线程上传
+                    if (rtImages != null && rtImages.shadowStagingPtr != 0) {
+                        java.nio.ByteBuffer copy =
+                            java.nio.ByteBuffer.allocateDirect((int) rtImages.shadowStagingSize);
+                        org.lwjgl.system.MemoryUtil.memCopy(
+                            rtImages.shadowStagingPtr,
+                            org.lwjgl.system.MemoryUtil.memAddress(copy),
+                            rtImages.shadowStagingSize);
+                        frame.shadowPixels = copy;
+
+                        if (frame.frameIndex % 60 == 0) {
+                            long sum = 0; int sampleCount = 1000;
+                            for (int i = 0; i < sampleCount; i++) {
+                                int idx = (int)((long) i * copy.capacity() / sampleCount);
+                                sum += (copy.get(idx) & 0xFF);
+                            }
+                            RTBridgeMod.LOGGER.info("[RTDiag] Shadow像素采样均值={} (0=黑,255=白) capacity={}",
+                                sum / sampleCount, copy.capacity());
+                        }
+                    }
                 });
                 asyncScheduler.start();
 
@@ -257,6 +280,26 @@ public class RTRenderer {
     private com.rtbridge.vulkan.RTImageSet rtImages;
     private int renderWidth = 1920, renderHeight = 1080; // 默认分辨率
 
+    // 真实相机状态（每帧由 GL 线程更新，RT 线程读取）
+    private final org.joml.Matrix4f cachedInvView = new org.joml.Matrix4f();
+    private final org.joml.Matrix4f cachedInvProj  = new org.joml.Matrix4f();
+    private final org.joml.Vector3f cachedLightDir = new org.joml.Vector3f(-0.5f, -1f, -0.3f).normalize();
+    private volatile boolean cameraDataValid = false;
+
+    /**
+     * GL 线程每帧调用：传入当前 MC 相机的视图矩阵和投影矩阵。
+     * RT 线程下一次 dispatch 时会用这份数据。
+     */
+    public void updateCamera(org.joml.Matrix4f view, org.joml.Matrix4f proj,
+                             org.joml.Vector3f sunDirection) {
+        synchronized (cachedInvView) {
+            view.invert(cachedInvView);
+            proj.invert(cachedInvProj);
+            cachedLightDir.set(sunDirection).normalize();
+            cameraDataValid = true;
+        }
+    }
+
     private void dispatchShadowPass(SceneDatabase scene, long frameIdx) {
         if (vulkanCtx == null || tlasManager == null) return;
 
@@ -274,10 +317,21 @@ public class RTRenderer {
             }
         }
 
-        // 太阳光方向（固定，后续从 MC 世界时间读取）
-        org.joml.Vector3f lightDir = new org.joml.Vector3f(-0.5f, -1f, -0.3f).normalize();
-        org.joml.Matrix4f invView  = new org.joml.Matrix4f(); // TODO: 从 MC camera 读取
-        org.joml.Matrix4f invProj  = new org.joml.Matrix4f(); // TODO: 从 MC camera 读取
+        if (!cameraDataValid) {
+            if (frameIdx % 60 == 0)
+                RTBridgeMod.LOGGER.info("[RTDiag] 相机数据未就绪，跳过 dispatch frame={}", frameIdx);
+            return;
+        }
+        if (frameIdx % 60 == 0)
+            RTBridgeMod.LOGGER.info("[RTDiag] dispatchShadowPass 执行 frame={}", frameIdx);
+
+        org.joml.Matrix4f invView, invProj;
+        org.joml.Vector3f lightDir;
+        synchronized (cachedInvView) {
+            invView  = new org.joml.Matrix4f(cachedInvView);
+            invProj  = new org.joml.Matrix4f(cachedInvProj);
+            lightDir = new org.joml.Vector3f(cachedLightDir);
+        }
 
         shadowPass.dispatch(invView, invProj, lightDir);
         shadowBufferId = (int) rtImages.shadowView; // 供 CompositePass 使用
@@ -319,6 +373,40 @@ public class RTRenderer {
         return resultReady.get();
     }
 
+    /** GL 线程调用：把 CPU 回读的像素数据上传到 GL 纹理 */
+    private long uploadCount = 0;
+    public void uploadPendingReadbacks() {
+        if (asyncScheduler == null || !asyncScheduler.hasResult()) {
+            if (uploadCount++ % 120 == 0)
+                RTBridgeMod.LOGGER.info("[RTDiag] uploadPendingReadbacks: 无结果 hasResult={}",
+                    asyncScheduler != null && asyncScheduler.hasResult());
+            return;
+        }
+        var frame = asyncScheduler.getLastReadyFrame();
+        if (frame == null || frame.shadowPixels == null) {
+            if (uploadCount++ % 120 == 0)
+                RTBridgeMod.LOGGER.info("[RTDiag] uploadPendingReadbacks: frame或pixels为null");
+            return;
+        }
+        if (shadowBufferId < 0) return;
+        if (uploadCount++ % 120 == 0)
+            RTBridgeMod.LOGGER.info("[RTDiag] 上传 shadowBufferId={} size={}",
+                shadowBufferId, frame.shadowPixels.capacity());
+
+        try {
+            org.lwjgl.opengl.GL11.glBindTexture(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, shadowBufferId);
+            org.lwjgl.opengl.GL11.glTexSubImage2D(
+                org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0, 0, 0,
+                renderWidth, renderHeight,
+                org.lwjgl.opengl.GL11.GL_RGBA, org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE,
+                frame.shadowPixels);
+            org.lwjgl.opengl.GL11.glBindTexture(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0);
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[RTRenderer] Shadow 回读上传失败: {}", e.getMessage());
+        }
+        frame.shadowPixels = null; // 消费后清空，避免重复上传
+    }
+
     public int getShadowBuffer() {
         if (asyncScheduler != null && asyncScheduler.hasResult())
             return asyncScheduler.getLastReadyFrame().shadowTexId;
@@ -338,6 +426,21 @@ public class RTRenderer {
     public TLASInstanceBuffer getTLASBuffer()   { return tlasBuffer; }
     public com.rtbridge.bvh.TLASManager getTLASManager() { return tlasManager; }
     public AsyncBLASBuilder   getBLASBuilder()  { return blasBuilder; }
+
+    private int createPlainGLTexture(int w, int h) {
+        int tex = org.lwjgl.opengl.GL11.glGenTextures();
+        org.lwjgl.opengl.GL11.glBindTexture(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, tex);
+        org.lwjgl.opengl.GL11.glTexImage2D(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0,
+            org.lwjgl.opengl.GL11.GL_RGBA, w, h, 0,
+            org.lwjgl.opengl.GL11.GL_RGBA, org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE,
+            (java.nio.ByteBuffer) null);
+        org.lwjgl.opengl.GL11.glTexParameteri(org.lwjgl.opengl.GL11.GL_TEXTURE_2D,
+            org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER, org.lwjgl.opengl.GL11.GL_LINEAR);
+        org.lwjgl.opengl.GL11.glTexParameteri(org.lwjgl.opengl.GL11.GL_TEXTURE_2D,
+            org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER, org.lwjgl.opengl.GL11.GL_LINEAR);
+        org.lwjgl.opengl.GL11.glBindTexture(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, 0);
+        return tex;
+    }
 
     public void shutdown() {
         if (asyncScheduler != null) asyncScheduler.stop();

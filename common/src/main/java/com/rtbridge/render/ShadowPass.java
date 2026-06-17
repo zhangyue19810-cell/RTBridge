@@ -162,7 +162,35 @@ public class ShadowPass implements AutoCloseable {
                 width, height, 1);
         }
 
-        // Barrier: shadow image GENERAL → SHADER_READ_ONLY（供 CompositePass 采样）
+        // CPU 回读：拷贝到 staging buffer（GENERAL → TRANSFER_SRC → 拷贝 → 回 GENERAL）
+        if (images.shadowStagingBuffer != VK_NULL_HANDLE) {
+            imageBarrier(cmd, images.shadowImage,
+                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                VkBufferImageCopy.Buffer region = VkBufferImageCopy.calloc(1, stack)
+                    .bufferOffset(0).bufferRowLength(0).bufferImageHeight(0);
+                region.imageSubresource()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .mipLevel(0).baseArrayLayer(0).layerCount(1);
+                region.imageExtent().width(width).height(height).depth(1);
+
+                vkCmdCopyImageToBuffer(cmd, images.shadowImage,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    images.shadowStagingBuffer, region);
+            }
+
+            imageBarrier(cmd, images.shadowImage,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
+                VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+        }
+
+        // Barrier: shadow image GENERAL → SHADER_READ_ONLY（保留兼容旧路径）
         imageBarrier(cmd,
             images.shadowImage,
             VK_IMAGE_LAYOUT_GENERAL,
@@ -173,6 +201,7 @@ public class ShadowPass implements AutoCloseable {
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
         cmdBuf.submitAndSignal();
+        cmdBuf.waitIdle(); // RT 线程阻塞等待 GPU 完成，确保 staging buffer 数据有效
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

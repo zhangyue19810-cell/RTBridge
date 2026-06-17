@@ -38,6 +38,7 @@ public class AsyncRTScheduler {
         public volatile int shadowTexId     = -1;
         public volatile int reflectionTexId = -1;
         public volatile int giTexId         = -1;
+        public volatile java.nio.ByteBuffer shadowPixels = null; // CPU 回读数据
 
         public RTFrame(long idx, SceneDatabase scene) {
             this.frameIndex = idx;

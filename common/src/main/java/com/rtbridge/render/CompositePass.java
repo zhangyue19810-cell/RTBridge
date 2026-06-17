@@ -122,6 +122,7 @@ public class CompositePass {
      * @param reflectionTexId GL tex id, -1 = no reflection
      * @param giTexId         GL tex id, -1 = no GI
      */
+    private long frameCount = 0;
     public void composite(int baseColorTexId, int shadowTexId, int reflectionTexId, int giTexId) {
         if (!initialised) { init(); return; }
         if (failed) return;
@@ -131,6 +132,11 @@ public class CompositePass {
         boolean hasReflection = reflectionTexId >= 0 && glIsTexture(reflectionTexId);
         boolean hasGI         = giTexId         >= 0 && glIsTexture(giTexId);
         boolean hasBase       = baseColorTexId  >= 0 && glIsTexture(baseColorTexId);
+
+        if (frameCount++ % 120 == 0) {
+            RTBridgeMod.LOGGER.info("[RTDiag] composite: hasBase={} hasShadow={} hasReflection={} hasGI={} shadowTexId={} baseColorTexId={}",
+                hasBase, hasShadow, hasReflection, hasGI, shadowTexId, baseColorTexId);
+        }
 
         float rtWeight = (hasShadow || hasReflection || hasGI) ? 1.0f : 0.0f;
         if (rtWeight == 0f || !hasBase) return;

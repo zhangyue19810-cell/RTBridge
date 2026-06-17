@@ -68,6 +68,64 @@ public class RTImageSet implements AutoCloseable {
 
             RTBridgeMod.LOGGER.info("[RTImageSet] Allocated {}x{}", width, height);
         }
+        allocateShadowStaging();
+    }
+
+    // ── CPU 回读 staging buffer（持久映射）─────────────────────────────────────
+    public long shadowStagingBuffer = VK_NULL_HANDLE;
+    public long shadowStagingMemory = VK_NULL_HANDLE;
+    public long shadowStagingPtr    = 0L;
+    public long shadowStagingSize   = 0L;
+
+    private void allocateShadowStaging() {
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            shadowStagingSize = (long) width * height * 4; // RGBA8
+
+            java.nio.LongBuffer pBuf = stack.mallocLong(1);
+            VulkanBuffer.check(vkCreateBuffer(ctx.device,
+                VkBufferCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO)
+                    .size(shadowStagingSize)
+                    .usage(VK_BUFFER_USAGE_TRANSFER_DST_BIT)
+                    .sharingMode(VK_SHARING_MODE_EXCLUSIVE),
+                null, pBuf), "vkCreateBuffer shadowStaging");
+            shadowStagingBuffer = pBuf.get(0);
+
+            VkMemoryRequirements req = VkMemoryRequirements.malloc(stack);
+            vkGetBufferMemoryRequirements(ctx.device, shadowStagingBuffer, req);
+
+            int memType = -1;
+            VkPhysicalDeviceMemoryProperties mp = VkPhysicalDeviceMemoryProperties.malloc(stack);
+            vkGetPhysicalDeviceMemoryProperties(ctx.physDevice, mp);
+            for (int i = 0; i < mp.memoryTypeCount(); i++) {
+                if ((req.memoryTypeBits() & (1 << i)) != 0
+                    && (mp.memoryTypes(i).propertyFlags()
+                        & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+                       == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+                    memType = i; break;
+                }
+            }
+
+            java.nio.LongBuffer pMem = stack.mallocLong(1);
+            VulkanBuffer.check(vkAllocateMemory(ctx.device,
+                VkMemoryAllocateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
+                    .allocationSize(req.size())
+                    .memoryTypeIndex(memType),
+                null, pMem), "vkAllocateMemory shadowStaging");
+            shadowStagingMemory = pMem.get(0);
+            vkBindBufferMemory(ctx.device, shadowStagingBuffer, shadowStagingMemory, 0);
+
+            // 持久映射
+            org.lwjgl.PointerBuffer pData = stack.mallocPointer(1);
+            vkMapMemory(ctx.device, shadowStagingMemory, 0, shadowStagingSize, 0, pData);
+            shadowStagingPtr = pData.get(0);
+
+            RTBridgeMod.LOGGER.info("[RTImageSet] Shadow staging buffer 就绪 {}KB",
+                shadowStagingSize / 1024);
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[RTImageSet] Shadow staging 分配失败: {}", e.getMessage());
+        }
     }
 
     public void initExternalImages() {

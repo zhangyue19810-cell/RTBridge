@@ -67,6 +67,7 @@ public class ExternalImage implements AutoCloseable {
     // ── 初始化（GL 线程调用）──────────────────────────────────────────────────
 
     public boolean init() {
+        RTBridgeMod.LOGGER.info("[ExternalImage] init begin {}x{}", width, height);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             if (!createVulkanImage(stack))  return false;
             if (!exportToGL(stack))         return false;
@@ -74,7 +75,7 @@ public class ExternalImage implements AutoCloseable {
                 width, height, glTexId);
             return true;
         } catch (Throwable e) {
-            RTBridgeMod.LOGGER.error("[ExternalImage] 初始化失败: {}", e.getMessage());
+            RTBridgeMod.LOGGER.error("[ExternalImage] 初始化失败", e); // 打印完整堆栈
             return false;
         }
     }
@@ -82,6 +83,7 @@ public class ExternalImage implements AutoCloseable {
     // ── Vulkan 图像创建 ───────────────────────────────────────────────────────
 
     private boolean createVulkanImage(MemoryStack stack) {
+        RTBridgeMod.LOGGER.info("[ExternalImage] createVulkanImage begin");
         // 声明外部内存导出
         VkExternalMemoryImageCreateInfo extMemInfo =
             VkExternalMemoryImageCreateInfo.calloc(stack)
@@ -150,15 +152,40 @@ public class ExternalImage implements AutoCloseable {
     // ── 导出到 OpenGL ─────────────────────────────────────────────────────────
 
     private boolean exportToGL(MemoryStack stack) {
-        // 先检查 GL 能力是否真的支持 Win32 内存导入
+        RTBridgeMod.LOGGER.info("[ExternalImage] exportToGL begin");
+        // 诊断：打印所有相关 GL 扩展支持情况
         try {
             var caps = org.lwjgl.opengl.GL.getCapabilities();
+            RTBridgeMod.LOGGER.info("[GLDiag] GL_EXT_memory_object={}", caps.GL_EXT_memory_object);
+            RTBridgeMod.LOGGER.info("[GLDiag] GL_EXT_memory_object_win32={}", caps.GL_EXT_memory_object_win32);
+            RTBridgeMod.LOGGER.info("[GLDiag] GL_EXT_semaphore={}", caps.GL_EXT_semaphore);
+            RTBridgeMod.LOGGER.info("[GLDiag] GL_EXT_semaphore_win32={}", caps.GL_EXT_semaphore_win32);
+            RTBridgeMod.LOGGER.info("[GLDiag] OpenGL version={}", org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_VERSION));
+
+            String allExt = org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_EXTENSIONS);
+            if (allExt != null) {
+                for (String e : allExt.split(" ")) {
+                    if (e.contains("memory_object") || e.contains("semaphore") || e.contains("win32")) {
+                        RTBridgeMod.LOGGER.info("[GLDiag] 驱动支持扩展: {}", e);
+                    }
+                }
+            } else {
+                int count = org.lwjgl.opengl.GL30.glGetInteger(org.lwjgl.opengl.GL30.GL_NUM_EXTENSIONS);
+                RTBridgeMod.LOGGER.info("[GLDiag] Core profile, 扩展总数={}", count);
+                for (int i = 0; i < count; i++) {
+                    String e = org.lwjgl.opengl.GL30.glGetStringi(org.lwjgl.opengl.GL11.GL_EXTENSIONS, i);
+                    if (e != null && (e.contains("memory_object") || e.contains("semaphore") || e.contains("win32"))) {
+                        RTBridgeMod.LOGGER.info("[GLDiag] 驱动支持扩展: {}", e);
+                    }
+                }
+            }
+
             if (!caps.GL_EXT_memory_object_win32 || !caps.GL_EXT_memory_object) {
                 RTBridgeMod.LOGGER.warn("[ExternalImage] GL_EXT_memory_object_win32 不可用，跳过 GL-Vulkan interop");
                 return false;
             }
         } catch (Throwable e) {
-            RTBridgeMod.LOGGER.warn("[ExternalImage] GL 能力检查失败: {}", e.getMessage());
+            RTBridgeMod.LOGGER.warn("[ExternalImage] GL 能力检查失败: {}", e.getMessage(), e);
             return false;
         }
 
@@ -174,6 +201,7 @@ public class ExternalImage implements AutoCloseable {
 
         // GL: 创建 memory object 并导入
         glMemObj = glCreateMemoryObjectsEXT();
+        RTBridgeMod.LOGGER.info("[ExternalImage] glCreateMemoryObjectsEXT ok glMemObj={}", glMemObj);
         glImportMemoryWin32HandleEXT(glMemObj, sizeBytes,
             EXTMemoryObjectWin32.GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handle);
 

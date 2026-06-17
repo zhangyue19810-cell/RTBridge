@@ -17,6 +17,39 @@ public class RTBridgeFabric implements ClientModInitializer {
             RTBridgeMod.getRTRenderer().initOnFirstFrame();
             // GL 线程：初始化 GL-Vulkan 共享图像
             RTBridgeMod.getRTRenderer().initExternalImagesOnGLThread();
+
+            // 每帧更新真实相机矩阵
+            var mc = net.minecraft.client.MinecraftClient.getInstance();
+            if (mc.gameRenderer != null && mc.gameRenderer.getCamera() != null) {
+                var camera = mc.gameRenderer.getCamera();
+
+                // MC 视图矩阵：相机旋转 (yaw/pitch)
+                org.joml.Matrix4f viewMat = new org.joml.Matrix4f();
+                viewMat.rotate(org.joml.Math.toRadians(camera.getYaw() + 180f),
+                    new org.joml.Vector3f(0, 1, 0));
+                viewMat.rotate(org.joml.Math.toRadians(camera.getPitch()),
+                    new org.joml.Vector3f(1, 0, 0));
+
+                var pos = camera.getPos();
+                viewMat.translate(-(float) pos.x, -(float) pos.y, -(float) pos.z);
+
+                // MC 投影矩阵：从 GameRenderer 取 FOV
+                float fovDeg = (float) mc.options.getFov().getValue();
+                float aspect = (float) mc.getWindow().getFramebufferWidth()
+                             / mc.getWindow().getFramebufferHeight();
+                org.joml.Matrix4f projMat = new org.joml.Matrix4f()
+                    .perspective(org.joml.Math.toRadians(fovDeg), aspect, 0.05f, 512f);
+
+                // 太阳方向：根据世界时间计算（简化：白天朝上偏一点角度）
+                float dayTime = mc.world != null
+                    ? (mc.world.getTimeOfDay() % 24000) / 24000f : 0.25f;
+                float sunAngle = dayTime * 6.2831853f - 1.5707963f; // -90° 偏移让正午太阳在天顶
+                org.joml.Vector3f sunDir = new org.joml.Vector3f(
+                    (float) Math.cos(sunAngle), -(float) Math.sin(sunAngle) - 0.2f, 0.3f
+                ).normalize();
+
+                RTBridgeMod.getRTRenderer().updateCamera(viewMat, projMat, sunDir);
+            }
             RTBridgeMod.getTripleBuffer().advanceFrame();
             RTBridgeMod.getRTRenderer().submitFrame(
                 RTBridgeMod.getTripleBuffer().getMiddle());
