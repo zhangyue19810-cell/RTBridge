@@ -1,5 +1,7 @@
 package com.rtbridge.vulkan;
 
+import static org.lwjgl.vulkan.KHRExternalMemory.VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME;
+import static org.lwjgl.vulkan.KHRExternalMemoryWin32.VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME;
 import com.rtbridge.RTBridgeMod;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -37,7 +39,11 @@ public class VulkanContext implements AutoCloseable {
         VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
         VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
         VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
+        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+
+        VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+
+        VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME
     );
 
     private String deviceName = "Unknown";
