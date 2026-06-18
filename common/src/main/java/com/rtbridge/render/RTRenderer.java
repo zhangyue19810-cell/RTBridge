@@ -334,7 +334,9 @@ public class RTRenderer {
         }
 
         shadowPass.dispatch(invView, invProj, lightDir);
-        shadowBufferId = (int) rtImages.shadowView; // 供 CompositePass 使用
+        // 注意：shadowBufferId 不能在此处覆盖！
+        // 它应该一直是 GL 纹理 ID（由 initExternalImagesOnGLThread 设置），
+        // 不能被 Vulkan 的 VkImageView 句柄覆盖（之前这里有个 bug 导致 composite 失败）。
         RTBridgeMod.LOGGER.debug("[RTRenderer] Shadow pass dispatched frame={}", frameIdx);
     }
 
