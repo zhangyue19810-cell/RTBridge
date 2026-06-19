@@ -101,10 +101,20 @@ public class ExternalImage implements AutoCloseable {
 
         this.sizeBytes = req.size();
 
+        // Win32 句柄导出需要同时提供 VkExportMemoryWin32HandleInfoKHR（访问权限）
+        // 否则 vkGetMemoryWin32HandleKHR 会返回 NULL handle（Vulkan 规范要求）
+        VkExportMemoryWin32HandleInfoKHR win32Info =
+            VkExportMemoryWin32HandleInfoKHR.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR)
+                .pAttributes(null)         // 默认安全属性
+                .dwAccess(0x1F0003)        // GENERIC_ALL 访问权限
+                .name((java.nio.ByteBuffer)null); // 无命名对象
+
         VkExportMemoryAllocateInfo exportInfo =
             VkExportMemoryAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO)
-                .handleTypes(VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR);
+                .handleTypes(VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR)
+                .pNext(win32Info.address()); // 链入 Win32 导出信息
 
         LongBuffer pMem = stack.mallocLong(1);
 
@@ -301,8 +311,17 @@ public class ExternalImage implements AutoCloseable {
             pHandle), "vkGetMemoryWin32HandleKHR");
 
         long handle = pHandle.get(0);
+        RTBridgeMod.LOGGER.info("[ExternalImage] Win32 HANDLE = 0x{} sizeBytes={}",
+            Long.toHexString(handle), this.sizeBytes);
+
+        if (handle == 0) {
+            RTBridgeMod.LOGGER.error("[ExternalImage] vkGetMemoryWin32HandleKHR 返回了 NULL HANDLE！");
+            RTBridgeMod.LOGGER.error("[ExternalImage] 可能原因：VkMemory 未以 EXPORT 标志分配，或驱动不支持此操作");
+            return false;
+        }
 
         glMemObj = glCreateMemoryObjectsEXT();
+        RTBridgeMod.LOGGER.info("[ExternalImage] glMemObj={}", glMemObj);
 
         glImportMemoryWin32HandleEXT(glMemObj, this.sizeBytes,
             GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handle);
