@@ -17,7 +17,7 @@ public class NormalReconstructPass {
 
     private static int program  = -1;
     private static int vao      = -1;
-    private static int uDepth, uNear, uFar, uFov, uAspect, uRes;
+    private static int uDepth, uNear, uFar, uFov, uAspect, uRes, uInvViewRot;
 
     private static final String VERT = """
         #version 330 core
@@ -31,11 +31,12 @@ public class NormalReconstructPass {
     private static final String FRAG = """
         #version 330 core
         in  vec2 vUV;
-        out vec3 outNormal;
+        out vec4 outNormal;
 
         uniform sampler2D u_Depth;
         uniform float u_Near, u_Far, u_Fov, u_Aspect;
         uniform vec2  u_Res;
+        uniform mat3  u_InvViewRot; // 视空间→世界空间 旋转部分
 
         // 深度转线性
         float linearDepth(float d) {
@@ -58,13 +59,15 @@ public class NormalReconstructPass {
             vec3 c  = viewPos(vUV);
             vec3 r  = viewPos(vUV + vec2(px.x, 0.0));
             vec3 u  = viewPos(vUV + vec2(0.0, px.y));
-            vec3 N  = normalize(cross(r - c, u - c));
-            outNormal = N * 0.5 + 0.5; // encode to [0,1]
+            vec3 N_view  = normalize(cross(r - c, u - c));
+            vec3 N_world = normalize(u_InvViewRot * N_view); // 视空间→世界空间
+            outNormal = vec4(N_world * 0.5 + 0.5, 1.0); // encode to [0,1]
         }
         """;
 
     public static void run(int depthTex, float near, float far,
-                           float fovY, float aspect, int w, int h) {
+                           float fovY, float aspect, int w, int h,
+                           org.joml.Matrix3f invViewRot) {
         if (program < 0) init();
         if (program < 0) return;
 
@@ -77,6 +80,10 @@ public class NormalReconstructPass {
         glUniform1f(uFov,    fovY);
         glUniform1f(uAspect, aspect);
         glUniform2f(uRes,    w, h);
+
+        float[] m = new float[9];
+        invViewRot.get(m);
+        glUniformMatrix3fv(uInvViewRot, false, m);
 
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -105,6 +112,7 @@ public class NormalReconstructPass {
             uFov    = glGetUniformLocation(program, "u_Fov");
             uAspect = glGetUniformLocation(program, "u_Aspect");
             uRes    = glGetUniformLocation(program, "u_Res");
+            uInvViewRot = glGetUniformLocation(program, "u_InvViewRot");
 
             vao = glGenVertexArrays();
             RTBridgeMod.LOGGER.info("[NormalRecon] Shader 编译成功");

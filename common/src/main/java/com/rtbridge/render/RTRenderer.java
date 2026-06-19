@@ -84,6 +84,15 @@ public class RTRenderer {
     public void initExternalImagesOnGLThread() {
         if (externalInited || rtImages == null || !rtAvailable.get()) return;
         externalInited = true;
+
+        // 提前做一次 GL 函数指针修补（确保在 ExternalImage 之前生效）
+        try {
+            var caps = org.lwjgl.opengl.GL.getCapabilities();
+            com.rtbridge.vulkan.ExternalImage.patchGLFunctionPointers(caps);
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.warn("[RTRenderer] 提前GL修补失败: {}", e.getMessage());
+        }
+
         rtImages.initExternalImages();
         if (rtImages.externalReady) {
             shadowBufferId     = rtImages.getShadowGLTex();
@@ -428,6 +437,30 @@ public class RTRenderer {
     public TLASInstanceBuffer getTLASBuffer()   { return tlasBuffer; }
     public com.rtbridge.bvh.TLASManager getTLASManager() { return tlasManager; }
     public AsyncBLASBuilder   getBLASBuilder()  { return blasBuilder; }
+
+    /**
+     * GL 线程调用：把 MC 真实深度/法线 CPU 回读数据拷贝进 Vulkan staging buffer。
+     * 这些数据将在下次 ShadowPass.dispatch() 时被拷贝进 gDepthImage/gNormalImage。
+     */
+    public void uploadGBufferToVulkan(java.nio.ByteBuffer depthData, java.nio.ByteBuffer normalData) {
+        if (rtImages == null) return;
+        try {
+            if (depthData != null && rtImages.gDepthUploadPtr != 0) {
+                long copySize = Math.min(depthData.remaining(), rtImages.gDepthUploadSize);
+                org.lwjgl.system.MemoryUtil.memCopy(
+                    org.lwjgl.system.MemoryUtil.memAddress(depthData),
+                    rtImages.gDepthUploadPtr, copySize);
+            }
+            if (normalData != null && rtImages.gNormalUploadPtr != 0) {
+                long copySize = Math.min(normalData.remaining(), rtImages.gNormalUploadSize);
+                org.lwjgl.system.MemoryUtil.memCopy(
+                    org.lwjgl.system.MemoryUtil.memAddress(normalData),
+                    rtImages.gNormalUploadPtr, copySize);
+            }
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[RTRenderer] GBuffer 上传失败: {}", e.getMessage());
+        }
+    }
 
     private int createPlainGLTexture(int w, int h) {
         int tex = org.lwjgl.opengl.GL11.glGenTextures();
