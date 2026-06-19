@@ -157,21 +157,55 @@ public class ExternalImage implements AutoCloseable {
                 "glDeleteSemaphoresEXT",
                 "glWaitSemaphoreEXT",
             };
+            // 先尝试加载 nvoglv64.dll（NVIDIA OpenGL 驱动）
+            long hLib = loadNvidiaGL();
+
+            // LWJGL 内部的 FunctionProvider（比手动 wglGetProcAddress 更可靠）
+            org.lwjgl.system.FunctionProvider provider = null;
+            try { provider = org.lwjgl.opengl.GL.getFunctionProvider(); } catch (Throwable ignored) {}
+
             int patched = 0;
             for (String name : funcs) {
                 try {
                     java.lang.reflect.Field f = caps.getClass().getField(name);
                     f.setAccessible(true);
                     long cur = f.getLong(caps);
-                    if (cur != 0) continue;
-                    long ptr = org.lwjgl.opengl.WGL.wglGetProcAddress(name);
+
+                    long ptr = 0;
+
+                    // 1. LWJGL 内部 FunctionProvider（最可靠）
+                    if (provider != null) {
+                        ptr = provider.getFunctionAddress(name);
+                        if (ptr != 0)
+                            RTBridgeMod.LOGGER.info("[GLPatch] FunctionProvider {} = 0x{}", name, Long.toHexString(ptr));
+                    }
+
+                    // 2. 备用：wglGetProcAddress
                     if (ptr == 0) {
-                        RTBridgeMod.LOGGER.warn("[GLPatch] wglGetProcAddress({})=0", name);
+                        ptr = org.lwjgl.opengl.WGL.wglGetProcAddress(name);
+                        if (ptr != 0)
+                            RTBridgeMod.LOGGER.info("[GLPatch] wglGetProcAddress {} = 0x{}", name, Long.toHexString(ptr));
+                    }
+
+                    // 3. 备用：从 DLL 取
+                    if (ptr == 0 && hLib != 0) {
+                        ptr = getProcAddress(hLib, name);
+                        if (ptr != 0)
+                            RTBridgeMod.LOGGER.info("[GLPatch] DLL {} = 0x{}", name, Long.toHexString(ptr));
+                    }
+
+                    RTBridgeMod.LOGGER.info("[GLPatch] {} cur={} new={}", name, Long.toHexString(cur), Long.toHexString(ptr));
+
+                    if (ptr == 0) {
+                        RTBridgeMod.LOGGER.warn("[GLPatch] 找不到函数指针: {}", name);
                         continue;
                     }
-                    unsafe.putLong(caps, unsafe.objectFieldOffset(f), ptr);
-                    RTBridgeMod.LOGGER.info("[GLPatch] {} = 0x{}", name, Long.toHexString(ptr));
-                    patched++;
+
+                    if (cur == 0) {
+                        unsafe.putLong(caps, unsafe.objectFieldOffset(f), ptr);
+                        RTBridgeMod.LOGGER.info("[GLPatch] 修补成功: {}", name);
+                        patched++;
+                    }
                 } catch (Throwable e) {
                     RTBridgeMod.LOGGER.warn("[GLPatch] {} 失败: {}", name, e.getMessage());
                 }
@@ -182,6 +216,78 @@ public class ExternalImage implements AutoCloseable {
             RTBridgeMod.LOGGER.error("[GLPatch] 修补失败: {}", e.getMessage());
             return false;
         }
+    }
+
+    /** 加载 NVIDIA OpenGL 驱动 DLL，返回模块句柄（0=失败） */
+    private static long loadNvidiaGL() {
+        // 尝试几个常见的 NVIDIA GL DLL 名称
+        String[] dlls = {"nvoglv64.dll", "nvoglv32.dll", "opengl32.dll"};
+        for (String dll : dlls) {
+            try {
+                long h = loadLibraryWin32(dll);
+                if (h != 0) {
+                    RTBridgeMod.LOGGER.info("[GLPatch] 加载 DLL: {}", dll);
+                    return h;
+                }
+            } catch (Throwable ignored) {}
+        }
+        RTBridgeMod.LOGGER.warn("[GLPatch] 无法加载 NVIDIA GL DLL");
+        return 0;
+    }
+
+    private static long loadLibraryWin32(String name) throws Exception {
+        // 用 JNA 或反射调用 LoadLibraryA
+        // 通过 org.lwjgl.system.windows.WindowsLibrary 或直接 JNI
+        try {
+            Class<?> libClass = Class.forName("org.lwjgl.system.Library");
+            // LWJGL 内部有 loadNative 方法
+            java.lang.reflect.Method m = libClass.getDeclaredMethod("loadNative",
+                Class.class, String.class, String.class, boolean.class);
+            m.setAccessible(true);
+            // 返回句柄
+            Object handle = m.invoke(null, null, null, name, false);
+            if (handle != null) {
+                java.lang.reflect.Field addrField = handle.getClass().getDeclaredField("address");
+                addrField.setAccessible(true);
+                return addrField.getLong(handle);
+            }
+        } catch (Throwable ignored) {}
+
+        // 备用：通过 kernel32 直接调用
+        try {
+            com.sun.jna.Native.register("kernel32");
+        } catch (Throwable ignored) {}
+
+        // 最后备用：用 System.load 后通过 ClassLoader native library 句柄
+        return 0;
+    }
+
+    private static long getProcAddress(long hLib, String name) {
+        // 用 LWJGL 的 JNI 桥直接调用 GetProcAddress
+        try {
+            // org.lwjgl.system.JNI.callPP(GetProcAddress, hLib, namePtr)
+            // 但我们没有 GetProcAddress 的函数指针...
+            // 改用 LWJGL 的 MemoryUtil + 反射
+            Class<?> libClass = Class.forName("org.lwjgl.system.windows.WindowsUtil");
+            java.lang.reflect.Method m = libClass.getDeclaredMethod("getProcAddress", long.class, String.class);
+            m.setAccessible(true);
+            Object result = m.invoke(null, hLib, name);
+            if (result instanceof Long) return (Long) result;
+            if (result instanceof Number) return ((Number) result).longValue();
+        } catch (Throwable ignored) {}
+
+        // 最简单方案：用 wglGetProcAddress 的 Win32 底层
+        // 实际上 wglGetProcAddress 就是从 opengl32.dll 里的 wglGetProcAddress 调的
+        // 如果这里也返回 0，说明函数确实不可用或需要 ARB 后缀
+        try {
+            // 尝试带 ARB/EXT 的变体名，有时候需要
+            long ptr = org.lwjgl.opengl.WGL.wglGetProcAddress(name + "ARB");
+            if (ptr != 0) return ptr;
+            ptr = org.lwjgl.opengl.WGL.wglGetProcAddress(name.replace("EXT", "ARB"));
+            if (ptr != 0) return ptr;
+        } catch (Throwable ignored) {}
+
+        return 0;
     }
 
     private boolean exportToGL(MemoryStack stack) {
