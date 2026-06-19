@@ -108,7 +108,7 @@ public class ExternalImage implements AutoCloseable {
                 .sType(VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR)
                 .pAttributes(null)         // 默认安全属性
                 .dwAccess(0x1F0003)        // GENERIC_ALL 访问权限
-                .name((java.nio.ByteBuffer)null); // 无命名对象
+                .name(stack.malloc(2).putShort(0, (short)0)); // 空字符串（UTF-16LE null terminator）
 
         VkExportMemoryAllocateInfo exportInfo =
             VkExportMemoryAllocateInfo.calloc(stack)
