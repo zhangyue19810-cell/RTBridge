@@ -128,6 +128,11 @@ public class RTRenderer {
             if (vulkanSupported) {
                 RTBridgeMod.LOGGER.info("[RTRenderer] Vulkan RT 初始化完成");
 
+                // blasBuilder 用 null ctx 创建，现在 Vulkan 就绪后 reinit
+                if (blasBuilder != null) {
+                    blasBuilder.reinit(vulkanCtx);
+                }
+
                 // 启动异步调度器
                 asyncScheduler = new AsyncRTScheduler(frame -> {
                     dispatchShadowPass(frame.scene, frame.frameIndex);
@@ -436,6 +441,7 @@ public class RTRenderer {
 
     public TLASInstanceBuffer getTLASBuffer()   { return tlasBuffer; }
     public com.rtbridge.bvh.TLASManager getTLASManager() { return tlasManager; }
+    public com.rtbridge.vulkan.VulkanContext getVulkanContext() { return vulkanCtx; }
     public AsyncBLASBuilder   getBLASBuilder()  { return blasBuilder; }
 
     /**

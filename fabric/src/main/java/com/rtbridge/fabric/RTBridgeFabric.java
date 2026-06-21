@@ -68,6 +68,10 @@ public class RTBridgeFabric implements ClientModInitializer {
             RTBridgeMod.getTripleBuffer().advanceFrame();
             RTBridgeMod.getRTRenderer().submitFrame(
                 RTBridgeMod.getTripleBuffer().getMiddle());
+
+            // 强制触发一次测试场景构建（确保 TLAS 不为空）
+            var se = RTBridgeMod.getSceneExtractor();
+            if (se != null) se.ensureTestScene();
         });
 
         // 渲染钩子：世界渲染完成后（合成 RT 结果到屏幕）

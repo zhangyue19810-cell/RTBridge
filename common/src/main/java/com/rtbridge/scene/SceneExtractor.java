@@ -107,23 +107,112 @@ public class SceneExtractor {
 
     // ── Chunk handlers ────────────────────────────────────────────────────────
 
+    // ── 临时测试场景：用硬编码顶点验证 RT 链路 ──────────────────────────────────
+    // 一个 8x8x8 的立方体，放在世界原点附近
+    // 每个三角形: 3 x vec3 = 9 floats = 36 bytes; 12 个三角形组成一个立方体
+    private static final float[] TEST_CUBE_VERTS;
+    static {
+        float s = 4f; // 半边长 4 格
+        TEST_CUBE_VERTS = new float[]{
+            // -X face
+            -s,-s,-s,  -s,-s, s,  -s, s, s,
+            -s,-s,-s,  -s, s, s,  -s, s,-s,
+            // +X face
+             s,-s,-s,   s, s, s,   s,-s, s,
+             s,-s,-s,   s, s,-s,   s, s, s,
+            // -Y face
+            -s,-s,-s,   s,-s,-s,   s,-s, s,
+            -s,-s,-s,   s,-s, s,  -s,-s, s,
+            // +Y face
+            -s, s,-s,   s, s, s,   s, s,-s,
+            -s, s,-s,  -s, s, s,   s, s, s,
+            // -Z face
+            -s,-s,-s,  -s, s,-s,   s, s,-s,
+            -s,-s,-s,   s, s,-s,   s,-s,-s,
+            // +Z face
+            -s,-s, s,   s,-s, s,   s, s, s,
+            -s,-s, s,   s, s, s,  -s, s, s,
+        };
+    }
+
+    private static volatile long testBLASHandle = 0L;
+    private static volatile boolean testBLASBuilt = false;
+
     private void handleChunkLoad(ChunkPos pos) {
         if (pos == null) return;
-        // Submit heavy tessellation to mesh pool; update Back buffer on completion
         meshPool.submit(() -> {
-            // TODO: extract vertex data from chunk via Sodium/vanilla mesh
-            long fakeBufHandle = pos.toLong(); // placeholder
-            int  fakeVertCount = 0;
+            // 如果还没有测试场景，建一个临时 BLAS（验证 RT 链路）
+            if (!testBLASBuilt) {
+                synchronized (SceneExtractor.class) {
+                    if (!testBLASBuilt) {
+                        buildTestBLAS();
+                        testBLASBuilt = true;
+                    }
+                }
+            }
 
             SceneDatabase back = tripleBuffer.getBack();
             back.writeLock();
             try {
-                back.staticGeometry().put(pos, fakeBufHandle, fakeVertCount);
+                // 用测试 BLAS 句柄（非零）填进去，让 TLAS 有内容
+                if (testBLASHandle != 0L) {
+                    back.staticGeometry().put(pos, testBLASHandle, TEST_CUBE_VERTS.length / 3);
+                } else {
+                    back.staticGeometry().put(pos, pos.toLong(), 0);
+                }
             } finally {
                 back.writeUnlock();
             }
-            RTBridgeMod.LOGGER.debug("[SceneExtractor] Chunk loaded: {}", pos);
+            RTBridgeMod.LOGGER.debug("[SceneExtractor] Chunk loaded: {} blasHandle=0x{}",
+                pos, Long.toHexString(testBLASHandle));
         });
+    }
+
+
+    /** 公开入口：确保测试场景已提交（从外部调用触发） */
+    public void ensureTestScene() {
+        if (!testBLASBuilt) {
+            synchronized (SceneExtractor.class) {
+                if (!testBLASBuilt) {
+                    testBLASBuilt = true;
+                    buildTestBLAS();
+                }
+            }
+        }
+    }
+
+    /** 构建测试 BLAS，用已有的 submitChunk 接口验证 RT 链路 */
+    private void buildTestBLAS() {
+        try {
+            var rt = RTBridgeMod.getRTRenderer();
+            if (rt == null) { RTBridgeMod.LOGGER.warn("[SceneExtractor] RTRenderer 未就绪"); return; }
+            var blasBuilder = rt.getBLASBuilder();
+            if (blasBuilder == null) { RTBridgeMod.LOGGER.warn("[SceneExtractor] BLASBuilder 未就绪"); return; }
+
+            RTBridgeMod.LOGGER.info("[SceneExtractor] 提交测试 BLAS {} verts...", TEST_CUBE_VERTS.length / 3);
+            int[] idx = new int[TEST_CUBE_VERTS.length / 3];
+            for (int i = 0; i < idx.length; i++) idx[i] = i;
+
+            long testKey = Long.MIN_VALUE;
+            blasBuilder.submitChunk(testKey, TEST_CUBE_VERTS, idx, (ownerId, entry) -> {
+                testBLASHandle = entry.asHandle;
+                RTBridgeMod.LOGGER.info("[SceneExtractor] 测试 BLAS 就绪: asHandle=0x{} devAddr=0x{}",
+                    Long.toHexString(entry.asHandle), Long.toHexString(entry.deviceAddress));
+                var tlas = rt.getTLASManager();
+                if (tlas != null) {
+                    try {
+                        tlas.addInstance(testKey, entry, new org.joml.Matrix4f());
+                        tlas.rebuild();
+                        RTBridgeMod.LOGGER.info("[SceneExtractor] TLAS rebuilt! handle=0x{}",
+                            Long.toHexString(tlas.getTLASHandle()));
+                    } catch (Throwable e2) {
+                        RTBridgeMod.LOGGER.error("[SceneExtractor] TLAS rebuild 失败: {}", e2.getMessage(), e2);
+                    }
+                }
+            });
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[SceneExtractor] 测试 BLAS 提交失败: {}", e.getMessage(), e);
+        }
     }
 
     private void handleChunkUnload(ChunkPos pos) {

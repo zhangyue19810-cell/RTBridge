@@ -110,7 +110,13 @@ public class ShadowPass implements AutoCloseable {
     // ── 每帧 dispatch ─────────────────────────────────────────────────────────
 
     public void dispatch(Matrix4f invView, Matrix4f invProj, Vector3f lightDir) {
-        if (!ready || tlas.getTLASHandle() == VK_NULL_HANDLE) return;
+        if (!ready || tlas.getTLASHandle() == VK_NULL_HANDLE) {
+            RTBridgeMod.LOGGER.warn("[ShadowPass] 跳过dispatch: ready={} tlasHandle=0x{}",
+                ready, Long.toHexString(tlas.getTLASHandle()));
+            return;
+        }
+        RTBridgeMod.LOGGER.debug("[ShadowPass] TLAS=0x{} dispatching {}x{}",
+            Long.toHexString(tlas.getTLASHandle()), width, height);
 
         // 更新 CameraUBO
         cameraUBO.update(invView, invProj, lightDir);

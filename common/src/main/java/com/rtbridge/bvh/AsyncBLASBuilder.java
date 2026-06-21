@@ -48,7 +48,7 @@ public class AsyncBLASBuilder {
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    private final VulkanContext             ctx;
+    private VulkanContext                    ctx; // 非final，initVulkan后通过reinit设置
     private final BlockingQueue<BLASTask>   queue    = new LinkedBlockingQueue<>();
     private final Map<Long, BLASEntry>      built    = new ConcurrentHashMap<>();
     private final ExecutorService           thread;
@@ -64,9 +64,30 @@ public class AsyncBLASBuilder {
             t.setDaemon(true);
             return t;
         });
-        thread.submit(this::init);
         thread.submit(this::buildLoop);
     }
+
+    /** Vulkan 初始化完成后设置真实 ctx，并创建 commandPool */
+    public synchronized void reinit(VulkanContext ctx) {
+        this.ctx = ctx;
+        if (commandPool != VK_NULL_HANDLE) return; // 已初始化
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            java.nio.LongBuffer pPool = stack.mallocLong(1);
+            check(vkCreateCommandPool(ctx.device,
+                VkCommandPoolCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
+                    .flags(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT)
+                    .queueFamilyIndex(ctx.computeQueueFamily),
+                null, pPool), "vkCreateCommandPool (reinit)");
+            commandPool = pPool.get(0);
+            RTBridgeMod.LOGGER.info("[BLASBuilder] reinit 成功，commandPool=0x{}",
+                Long.toHexString(commandPool));
+        } catch (Throwable e) {
+            RTBridgeMod.LOGGER.error("[BLASBuilder] reinit 失败: {}", e.getMessage());
+        }
+    }
+
+
 
     private void init() {
         try (MemoryStack stack = MemoryStack.stackPush()) {

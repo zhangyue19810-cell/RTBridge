@@ -311,8 +311,25 @@ public class ExternalImage implements AutoCloseable {
             pHandle), "vkGetMemoryWin32HandleKHR");
 
         long handle = pHandle.get(0);
-        RTBridgeMod.LOGGER.info("[ExternalImage] Win32 HANDLE = 0x{} sizeBytes={}",
-            Long.toHexString(handle), this.sizeBytes);
+        RTBridgeMod.LOGGER.info("[ExternalImage] Win32 HANDLE = 0x{} sizeBytes={} vkMemory=0x{}",
+            Long.toHexString(handle), this.sizeBytes, Long.toHexString(vkMemory));
+
+        // 额外诊断：尝试 VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT 作为备选
+        if (handle == 0) {
+            try (MemoryStack stack2 = MemoryStack.stackPush()) {
+                org.lwjgl.PointerBuffer pHandle2 = stack2.mallocPointer(1);
+                int res2 = vkGetMemoryWin32HandleKHR(ctx.device,
+                    VkMemoryGetWin32HandleInfoKHR.calloc(stack2)
+                        .sType(VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR)
+                        .memory(vkMemory)
+                        .handleType(0x00000002), // KMT bit (kernel handle)
+                    pHandle2);
+                long h2 = pHandle2.get(0);
+                RTBridgeMod.LOGGER.info("[ExternalImage] KMT handle res={} h=0x{}", res2, Long.toHexString(h2));
+            } catch (Throwable e) {
+                RTBridgeMod.LOGGER.error("[ExternalImage] KMT 尝试失败: {}", e.getMessage());
+            }
+        }
 
         if (handle == 0) {
             RTBridgeMod.LOGGER.error("[ExternalImage] vkGetMemoryWin32HandleKHR 返回了 NULL HANDLE！");
